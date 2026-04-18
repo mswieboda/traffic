@@ -8,6 +8,8 @@ module Traffic
 
   class Intersection < GSDL::Sprite
     property state : IntersectionSignal = IntersectionSignal::GreenNS
+    getter tile_x : Int32
+    getter tile_y : Int32
     @state_timer : GSDL::Timer
     @switch_interval : Time::Span
     @tile_x : Int32

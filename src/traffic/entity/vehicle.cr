@@ -23,6 +23,7 @@ module Traffic
     @original_speed : Float32
     @honk_timer : GSDL::Timer
     @rage_cooldown : GSDL::Timer
+    @last_intersection : Intersection? = nil
 
     def patient?    ; @frustration < PatienceThresholds::ANXIOUS; end
     def anxious?    ; @frustration >= PatienceThresholds::ANXIOUS && @frustration < PatienceThresholds::FRUSTRATED; end
@@ -43,15 +44,8 @@ module Traffic
                         end
       @speed = @original_speed
 
-      # Determine texture based on direction
-      texture_key = case direction
-                    when .north? then "car_north"
-                    when .south? then "car_south"
-                    else "car_east"
-                    end
-
-      super(texture_key, x, y)
       self.direction = direction
+      super(current_texture_key, x, y)
 
       # No rotation needed anymore as we use directional assets
       self.rotation = 0.0
@@ -60,6 +54,24 @@ module Traffic
     def collision_bounding_box : GSDL::FRect
       # Use intrinsic texture size without transformation
       GSDL::FRect.new(0, 0, width, height)
+    end
+
+    def width : Float32
+      tex_size = GSDL::TextureManager.get(current_texture_key).size
+      tex_size[0]
+    end
+
+    def height : Float32
+      tex_size = GSDL::TextureManager.get(current_texture_key).size
+      tex_size[1]
+    end
+
+    private def current_texture_key : String
+      case self.direction
+      when .north? then "car_north"
+      when .south? then "car_south"
+      else "car_east"
+      end
     end
 
     def look_ahead_box : GSDL::FRect
@@ -125,6 +137,10 @@ module Traffic
       end
 
       unless @waiting
+        handle_turns(intersections, all_vehicles)
+      end
+
+      unless @waiting
         # Basic movement
         dx = 0.0_f32
         dy = 0.0_f32
@@ -174,6 +190,104 @@ module Traffic
       all_vehicles.any? do |other|
         next false if other == self
         other.wrecked? && look_box.overlaps?(other.collision_box)
+      end
+    end
+
+    private def handle_turns(intersections : Array(Intersection), all_vehicles : Array(Vehicle))
+      # Center point of the vehicle
+      check_x = self.x + width / 2.0_f32
+      check_y = self.y + height / 2.0_f32
+
+      current_inter = intersections.find { |inter| inter.clicked?(check_x, check_y) }
+
+      if current_inter
+        if current_inter != @last_intersection
+          @last_intersection = current_inter
+          
+          # 30% chance to turn right
+          if Random.rand < 0.3
+            inter_px = current_inter.tile_x * 128.0_f32
+            inter_py = current_inter.tile_y * 128.0_f32
+
+            # Ideal turn coordinates for right-hand traffic
+            # E->S: Turn at x=inter_px+16, y=inter_py+80
+            # S->W: Turn at x=inter_px+16, y=inter_py+16
+            # W->N: Turn at x=inter_px+80, y=inter_py+16
+            # N->E: Turn at x=inter_px+80, y=inter_py+80
+
+            can_turn = false
+            new_dir = self.direction
+            new_x = self.x
+            new_y = self.y
+
+            threshold = 24.0_f32 # Distance from ideal point to trigger turn
+
+            case self.direction
+            when .east?  # East -> South (Lane X=16)
+              target_x = inter_px + 16.0_f32
+              if (self.x - target_x).abs < threshold
+                can_turn = true
+                new_dir = GSDL::Direction::South
+                new_x = target_x
+              end
+            when .south? # South -> West (Lane Y=16)
+              target_y = inter_py + 16.0_f32
+              if (self.y - target_y).abs < threshold
+                can_turn = true
+                new_dir = GSDL::Direction::West
+                new_y = target_y
+              end
+            when .west?  # West -> North (Lane X=80)
+              target_x = inter_px + 80.0_f32
+              if (self.x - target_x).abs < threshold
+                can_turn = true
+                new_dir = GSDL::Direction::North
+                new_x = target_x
+              end
+            when .north? # North -> East (Lane Y=80)
+              target_y = inter_py + 80.0_f32
+              if (self.y - target_y).abs < threshold
+                can_turn = true
+                new_dir = GSDL::Direction::East
+                new_y = target_y
+              end
+            else # ignore others
+            end
+
+            if can_turn
+              # Safety check: would we collide immediately if we turned?
+              # Temporarily switch direction and check collisions
+              old_dir = self.direction
+              old_x = self.x
+              old_y = self.y
+
+              self.direction = new_dir
+              self.x = new_x
+              self.y = new_y
+
+              # Check if new position overlaps any vehicle (including its look_ahead_box for lane integrity)
+              collision = all_vehicles.any? do |other|
+                next false if other == self
+                self.collides?(other) || other.look_ahead_box.overlaps?(self.collision_box)
+              end
+
+              if collision
+                # Revert turn if it would cause immediate collision
+                self.direction = old_dir
+                self.x = old_x
+                self.y = old_y
+                # Keep @last_intersection so we don't try again for THIS intersection
+              else
+                # Success!
+              end
+            else
+                # Didn't reach turn point yet, reset last_intersection so we check again next frame
+                @last_intersection = nil
+            end
+          end
+        end
+      else
+        @last_intersection = nil
       end
     end
 
@@ -234,15 +348,8 @@ module Traffic
 
       flip = self.direction.west? ? GSDL::TileMap::Flip::Horizontal : GSDL::TileMap::Flip::None
 
-      # Determine texture based on direction
-      texture_key = case self.direction
-                    when .north? then "car_north"
-                    when .south? then "car_south"
-                    else "car_east"
-                    end
-
       # Draw using directional texture and its actual size
-      tex = GSDL::TextureManager.get(texture_key)
+      tex = GSDL::TextureManager.get(current_texture_key)
       tex_size = tex.size
 
       tint_color = if @wrecked
