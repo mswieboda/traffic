@@ -42,7 +42,9 @@ module Traffic
       [
         {"tiles", "gfx/tiles.png"},
         {"signal", "gfx/signal.png"},
-        {"car", "gfx/car.png"},
+        {"car_east", "gfx/car_east.png"},
+        {"car_north", "gfx/car_north.png"},
+        {"car_south", "gfx/car_south.png"},
       ]
     end
 

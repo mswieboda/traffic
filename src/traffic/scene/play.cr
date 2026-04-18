@@ -85,26 +85,21 @@ module Traffic
       # Right-hand traffic.
       # Tile 128px. Two lanes of 64px.
       # Lane center is 32px or 96px from tile edge.
-      # Vehicle is 64x32. If we want it "centered" in 64px lane:
-      # Horizontal: Y offset = 32 - 16 = 16.
-      # Vertical: X offset = 32 - 32 = 0? (since car is 64 wide).
+      # Horizontal: Y offset = 32-16=16 or 96-16=80.
+      # Vertical: X offset = 32-16=16 or 96-16=80.
 
       vehicle_type = (Random.rand < 0.1) ? VehicleType::Priority : VehicleType::Civilian
       choice = Random.rand(4)
 
       case choice
-      when 0 # Eastbound (Bottom lane of row 3)
-        # Shift up 8px closer to center
-        @vehicles << Vehicle.new(vehicle_type, GSDL::Direction::East, -128, 3*128 + 72)
-      when 1 # Westbound (Top lane of row 3)
-        # Shift down 8px closer to center
-        @vehicles << Vehicle.new(vehicle_type, GSDL::Direction::West, 20*128, 3*128 + 24)
-      when 2 # Southbound (Left lane of col 4)
-        # Shift right 8px closer to center
-        @vehicles << Vehicle.new(vehicle_type, GSDL::Direction::South, 4*128 + 8, -128)
-      when 3 # Northbound (Right lane of col 4)
-        # Shift left 8px closer to center
-        @vehicles << Vehicle.new(vehicle_type, GSDL::Direction::North, 4*128 + 56, 11*128)
+      when 0 # Eastbound (Bottom lane of row 3, centered at 96px from top)
+        @vehicles << Vehicle.new(vehicle_type, GSDL::Direction::East, -128, 3*128 + 80)
+      when 1 # Westbound (Top lane of row 3, centered at 32px from top)
+        @vehicles << Vehicle.new(vehicle_type, GSDL::Direction::West, 20*128, 3*128 + 16)
+      when 2 # Southbound (Left lane of col 4, centered at 32px from left)
+        @vehicles << Vehicle.new(vehicle_type, GSDL::Direction::South, 4*128 + 16, -128)
+      when 3 # Northbound (Right lane of col 4, centered at 96px from left)
+        @vehicles << Vehicle.new(vehicle_type, GSDL::Direction::North, 4*128 + 80, 11*128)
       end
     end
 

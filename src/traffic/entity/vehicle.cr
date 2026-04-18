@@ -25,39 +25,28 @@ module Traffic
                         end
       @speed = @original_speed
 
-      super("car", x, y)
+      # Determine texture based on direction
+      texture_key = case direction
+                    when .north? then "car_north"
+                    when .south? then "car_south"
+                    else "car_east"
+                    end
+
+      super(texture_key, x, y)
       self.direction = direction
 
-      # Adjust visual orientation and center on lane
-      # car.png is 64x32
-      # tile is 128x128
-      case self.direction
-      when .east?
-        self.rotation = 0.0
-      when .west?
-        self.rotation = 180.0
-      when .north?
-        self.rotation = 270.0
-      when .south?
-        self.rotation = 90.0
-      else # default
-      end
+      # No rotation needed anymore as we use directional assets
+      self.rotation = 0.0
     end
 
     def collision_bounding_box : GSDL::FRect
-      case self.direction
-      when .north?, .south?
-        # Vertical: 32 wide, 64 long.
-        GSDL::FRect.new(16, -16, 32, 64)
-      else
-        # Horizontal: 64 wide, 32 long.
-        GSDL::FRect.new(0, 0, 64, 32)
-      end
+      # Use intrinsic texture size without transformation
+      GSDL::FRect.new(0, 0, width, height)
     end
 
     def look_ahead_box : GSDL::FRect
       box = collision_box
-      look_dist = 24.0_f32 # 16-32px as requested
+      look_dist = 24.0_f32
 
       case self.direction
       when .east?  then GSDL::FRect.new(box.right, box.y, look_dist, box.h)
@@ -72,8 +61,6 @@ module Traffic
       if @vehicle_type == VehicleType::Priority
         decay_rate = 1.0_f32
         if @waiting
-          # Significant penalty for gridlock (waiting behind a wrecked car)
-          # Otherwise just a normal wait (signal)
           if is_waiting_on_wreck?(all_vehicles)
             decay_rate = 10.0_f32
           else
@@ -141,11 +128,10 @@ module Traffic
 
     private def check_intersections(intersections)
       # Detection box in front of the vehicle
-      # Since tiles are 128px, let's check about 40px ahead
       look_ahead = 40.0_f32
 
-      check_x = self.x + 32 # center of 64px width
-      check_y = self.y + 16 # center of 32px height
+      check_x = self.x + width / 2.0_f32
+      check_y = self.y + height / 2.0_f32
 
       case self.direction
       when .east?  then check_x += look_ahead
@@ -156,7 +142,7 @@ module Traffic
       end
 
       intersections.each do |inter|
-        if inter.clicked?(check_x, check_y) # Reusing clicked? for bounds check
+        if inter.clicked?(check_x, check_y)
           case self.direction
           when .north?, .south?
             # Vertical traffic: stop if signal is GreenEW or YellowEW (meaning RedNS)
@@ -177,12 +163,10 @@ module Traffic
     end
 
     def off_screen?
-      # map is 20*128 x 11*128 = 2560x1408
       self.x < -200 || self.x > 2760 || self.y < -200 || self.y > 1600
     end
 
     def draw(draw : GSDL::Draw)
-      # Manually account for camera for texture drawing
       old_scale_x = draw.current_scale_x
       old_scale_y = draw.current_scale_y
 
@@ -191,12 +175,23 @@ module Traffic
       cam_x = GSDL::Game.camera.x
       cam_y = GSDL::Game.camera.y
 
-      # Use texture_rotated for orientation
-      draw.texture_rotated(
-        texture: GSDL::TextureManager.get("car"),
-        dest_rect: GSDL::FRect.new(x: self.x - cam_x, y: self.y - cam_y, w: 64, h: 32),
-        angle: self.rotation.to_f32,
-        center: GSDL::Point.new(32, 16),
+      flip = self.direction.west? ? GSDL::TileMap::Flip::Horizontal : GSDL::TileMap::Flip::None
+
+      # Determine texture based on direction
+      texture_key = case self.direction
+                    when .north? then "car_north"
+                    when .south? then "car_south"
+                    else "car_east"
+                    end
+
+      # Draw using directional texture and its actual size
+      tex = GSDL::TextureManager.get(texture_key)
+      tex_size = tex.size
+
+      draw.texture(
+        texture: tex,
+        dest_rect: GSDL::FRect.new(x: self.x - cam_x, y: self.y - cam_y, w: tex_size[0], h: tex_size[1]),
+        flip: flip,
         tint: @wrecked ? GSDL::Color.new(40, 40, 40, 255) : GSDL::Color::White,
         z_index: z_index
       )
