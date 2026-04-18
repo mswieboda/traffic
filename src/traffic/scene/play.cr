@@ -52,10 +52,11 @@ module Traffic
       # Mouse wheel zoom
       wheel_y = GSDL::Mouse.wheel_y
       if wheel_y != 0
-        camera.zoom += wheel_y * 0.025_f32
+        camera.zoom += wheel_y * 0.1_f32
       end
 
-      camera.zoom = 0.1_f32 if camera.zoom < 0.1_f32
+      camera.zoom = 0.25_f32 if camera.zoom < 0.25_f32
+      camera.zoom = 2_f32 if camera.zoom > 2_f32
 
       # Toggle intersections on click
       if GSDL::Mouse.just_pressed?(GSDL::Mouse::ButtonLeft)
