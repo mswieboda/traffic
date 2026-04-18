@@ -122,16 +122,16 @@ module Traffic
         if action.right? || action.left?
           case cdir
           when .east?
-            turn_x = inter_px + (action.right? ? Lane4 : Lane1)
+            turn_x = inter_px + (action.right? ? Lane1 : Lane3)
             cdir = action.right? ? GSDL::Direction::South : GSDL::Direction::North
           when .south?
-            turn_y = inter_py + (action.right? ? Lane1 : Lane4)
+            turn_y = inter_py + (action.right? ? Lane1 : Lane3)
             cdir = action.right? ? GSDL::Direction::West : GSDL::Direction::East
           when .west?
-            turn_x = inter_px + (action.right? ? Lane1 : Lane4)
+            turn_x = inter_px + (action.right? ? Lane4 : Lane2)
             cdir = action.right? ? GSDL::Direction::North : GSDL::Direction::South
           when .north?
-            turn_y = inter_py + (action.right? ? Lane4 : Lane1)
+            turn_y = inter_py + (action.right? ? Lane4 : Lane2)
             cdir = action.right? ? GSDL::Direction::East : GSDL::Direction::West
           end
         else
@@ -265,18 +265,18 @@ module Traffic
 
             if @next_action.right?
               case self.direction
-              when .east?  then (can_turn = true; new_dir = GSDL::Direction::South; new_x = inter_px + Lane4) if (self.x - (inter_px + Lane4)).abs < threshold
+              when .east?  then (can_turn = true; new_dir = GSDL::Direction::South; new_x = inter_px + Lane1) if (self.x - (inter_px + Lane1)).abs < threshold
               when .south? then (can_turn = true; new_dir = GSDL::Direction::West;  new_y = inter_py + Lane1) if (self.y - (inter_py + Lane1)).abs < threshold
-              when .west?  then (can_turn = true; new_dir = GSDL::Direction::North; new_x = inter_px + Lane1) if (self.x - (inter_px + Lane1)).abs < threshold
+              when .west?  then (can_turn = true; new_dir = GSDL::Direction::North; new_x = inter_px + Lane4) if (self.x - (inter_px + Lane4)).abs < threshold
               when .north? then (can_turn = true; new_dir = GSDL::Direction::East;  new_y = inter_py + Lane4) if (self.y - (inter_py + Lane4)).abs < threshold
               else # ignore
               end
             else # Left turn
               case self.direction
-              when .east?  then (can_turn = true; new_dir = GSDL::Direction::North; new_x = inter_px + Lane1) if (self.x - (inter_px + Lane1)).abs < threshold
-              when .south? then (can_turn = true; new_dir = GSDL::Direction::East;  new_y = inter_py + Lane4) if (self.y - (inter_py + Lane4)).abs < threshold
-              when .west?  then (can_turn = true; new_dir = GSDL::Direction::South; new_x = inter_px + Lane4) if (self.x - (inter_px + Lane4)).abs < threshold
-              when .north? then (can_turn = true; new_dir = GSDL::Direction::West;  new_y = inter_py + Lane1) if (self.y - (inter_py + Lane1)).abs < threshold
+              when .east?  then (can_turn = true; new_dir = GSDL::Direction::North; new_x = inter_px + Lane3) if (self.x - (inter_px + Lane3)).abs < threshold
+              when .south? then (can_turn = true; new_dir = GSDL::Direction::East;  new_y = inter_py + Lane3) if (self.y - (inter_py + Lane3)).abs < threshold
+              when .west?  then (can_turn = true; new_dir = GSDL::Direction::South; new_x = inter_px + Lane2) if (self.x - (inter_px + Lane2)).abs < threshold
+              when .north? then (can_turn = true; new_dir = GSDL::Direction::West;  new_y = inter_py + Lane2) if (self.y - (inter_py + Lane2)).abs < threshold
               else # ignore
               end
             end
@@ -318,19 +318,33 @@ module Traffic
         if inter.clicked?(check_x, check_y)
           next if is_committed
           next if road_rage? || @vehicle_type == VehicleType::Priority
+          
+          # Distance from line to decide if we should stop for yellow
+          dist_to_line = case self.direction
+                         when .east?  then (inter.tile_x * TileSize) - (self.x + width / 2.0_f32)
+                         when .west?  then (self.x - width / 2.0_f32) - (inter.tile_x * TileSize + IntersectionSize)
+                         when .north? then (self.y - height / 2.0_f32) - (inter.tile_y * TileSize + IntersectionSize)
+                         when .south? then (inter.tile_y * TileSize) - (self.y + height / 2.0_f32)
+                         else 0.0_f32
+                         end
+
           case self.direction
           when .north?, .south?
             case inter.state
             when .green_ns?      then (@waiting = true; return) if @next_action.left?
             when .green_ns_left? then (@waiting = true; return) unless @next_action.left?
-            when .yellow_ns?, .yellow_ns_left?, .all_red?, .green_ew?, .yellow_ew?, .green_ew_left?, .yellow_ew_left?
+            when .yellow_ns?     then (@waiting = true; return) if dist_to_line > 32.0_f32
+            when .yellow_ns_left? then (@waiting = true; return) if dist_to_line > 32.0_f32
+            when .all_red?, .green_ew?, .yellow_ew?, .green_ew_left?, .yellow_ew_left?
               @waiting = true; return
             end
           when .east?, .west?
             case inter.state
             when .green_ew?      then (@waiting = true; return) if @next_action.left?
             when .green_ew_left? then (@waiting = true; return) unless @next_action.left?
-            when .yellow_ew?, .yellow_ew_left?, .all_red?, .green_ns?, .yellow_ns?, .green_ns_left?, .yellow_ns_left?
+            when .yellow_ew?     then (@waiting = true; return) if dist_to_line > 32.0_f32
+            when .yellow_ew_left? then (@waiting = true; return) if dist_to_line > 32.0_f32
+            when .all_red?, .green_ns?, .yellow_ns?, .green_ns_left?, .yellow_ns_left?
               @waiting = true; return
             end
           else # ignore
