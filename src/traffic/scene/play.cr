@@ -5,7 +5,8 @@ module Traffic
     @vehicles : Array(Vehicle) = [] of Vehicle
 
     @spawn_timer : GSDL::Timer
-    @spawn_interval : Float32 = 0.5 # Faster spawn for testing
+    @spawn_interval_min : Float32 = 1.0
+    @spawn_interval_max : Float32 = 5.0
 
     def initialize
       super(:main_menu)
@@ -20,7 +21,7 @@ module Traffic
       camera.set_boundary(@map)
       camera.speed = 1000.0_f32 # Faster camera for larger map
 
-      @spawn_timer = GSDL::Timer.new(@spawn_interval.seconds)
+      @spawn_timer = GSDL::Timer.new(Random.rand(@spawn_interval_min..@spawn_interval_max).seconds)
       @spawn_timer.start
 
       # Find intersections in the map (gid 6)
@@ -29,7 +30,7 @@ module Traffic
           layer.data.each_with_index do |row, y|
             row.each_with_index do |gid, x|
               if (gid & ~GSDL::TileMap::ALL_FLIP_FLAGS) == 6
-                @intersections << Intersection.new(x, y)
+                @intersections << Intersection.new(x, y, 15)
               end
             end
           end
@@ -87,6 +88,7 @@ module Traffic
     private def update_spawner(dt : Float32)
       if @spawn_timer.done?
         spawn_vehicle
+        @spawn_timer.duration = Random.rand(@spawn_interval_min..@spawn_interval_max).seconds
         @spawn_timer.restart
       end
     end

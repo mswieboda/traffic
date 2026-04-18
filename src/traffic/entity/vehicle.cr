@@ -118,8 +118,8 @@ module Traffic
 
       unless @waiting
         # Intersection check (incorporating red lights into halting)
-        # Road Rage vehicles ignore traffic signals
-        unless road_rage?
+        # Road Rage vehicles and Priority vehicles ignore traffic signals
+        unless road_rage? || @vehicle_type == VehicleType::Priority
           check_intersections(intersections)
         end
       end
@@ -184,6 +184,9 @@ module Traffic
       check_x = self.x + width / 2.0_f32
       check_y = self.y + height / 2.0_f32
 
+      # Check if already inside an intersection
+      is_inside_intersection = intersections.any? { |inter| inter.clicked?(check_x, check_y) }
+
       case self.direction
       when .east?  then check_x += look_ahead
       when .west?  then check_x -= look_ahead
@@ -194,6 +197,9 @@ module Traffic
 
       intersections.each do |inter|
         if inter.clicked?(check_x, check_y)
+          # If already inside, don't stop
+          next if is_inside_intersection
+
           case self.direction
           when .north?, .south?
             # Vertical traffic: stop if signal is GreenEW or YellowEW (meaning RedNS)
@@ -239,11 +245,19 @@ module Traffic
       tex = GSDL::TextureManager.get(texture_key)
       tex_size = tex.size
 
+      tint_color = if @wrecked
+                     GSDL::Color.new(40, 40, 40, 255)
+                   elsif @vehicle_type == VehicleType::Priority
+                     GSDL::Color.new(0, 0, 255, 224)
+                   else
+                     GSDL::Color::White
+                   end
+
       draw.texture(
         texture: tex,
         dest_rect: GSDL::FRect.new(x: self.x - cam_x, y: self.y - cam_y, w: tex_size[0], h: tex_size[1]),
         flip: flip,
-        tint: @wrecked ? GSDL::Color.new(40, 40, 40, 255) : GSDL::Color::White,
+        tint: tint_color,
         z_index: z_index
       )
 

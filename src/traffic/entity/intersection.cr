@@ -9,51 +9,61 @@ module Traffic
   class Intersection < GSDL::Sprite
     property state : IntersectionSignal = IntersectionSignal::GreenNS
     @state_timer : GSDL::Timer
+    @switch_interval : Time::Span
     @tile_x : Int32
     @tile_y : Int32
 
-    def initialize(@tile_x, @tile_y)
+    def initialize(@tile_x, @tile_y, switch_seconds : Int32 = 30)
       # Position in pixels based on tile coordinates
       px = @tile_x * 128
       py = @tile_y * 128
 
+      @switch_interval = switch_seconds.seconds
       super("signal", px + 128 - 20, py + 2)
       @state = IntersectionSignal::GreenNS
-      @state_timer = GSDL::Timer.new(3.seconds)
+      @state_timer = GSDL::Timer.new(@switch_interval)
+      @state_timer.start
     end
 
     def update(dt : Float32)
       if @state_timer.done?
-        next_state
+        case @state
+        when IntersectionSignal::GreenNS
+          @state = IntersectionSignal::YellowNS
+          @state_timer.duration = 3.seconds
+          @state_timer.restart
+        when IntersectionSignal::YellowNS
+          @state = IntersectionSignal::GreenEW
+          @state_timer.duration = @switch_interval
+          @state_timer.restart
+        when IntersectionSignal::GreenEW
+          @state = IntersectionSignal::YellowEW
+          @state_timer.duration = 3.seconds
+          @state_timer.restart
+        when IntersectionSignal::YellowEW
+          @state = IntersectionSignal::GreenNS
+          @state_timer.duration = @switch_interval
+          @state_timer.restart
+        end
       end
-    end
-
-    def next_state
-      case @state
-      when IntersectionSignal::YellowNS
-        @state = IntersectionSignal::GreenEW
-      when IntersectionSignal::YellowEW
-        @state = IntersectionSignal::GreenNS
-      else
-        # No auto-transition from Green for now
-      end
-      @state_timer.stop
     end
 
     def toggle
-      return if @state_timer.running?
-
+      # Manual toggle can still work, just restart the timer for the new state
       case @state
       when IntersectionSignal::GreenNS
         @state = IntersectionSignal::YellowNS
+        @state_timer.duration = 3.seconds
         @state_timer.restart
       when IntersectionSignal::GreenEW
         @state = IntersectionSignal::YellowEW
+        @state_timer.duration = 3.seconds
         @state_timer.restart
       else
         # Transitioning, ignore
       end
     end
+
 
     def clicked?(mx, my)
       px = @tile_x * 128
