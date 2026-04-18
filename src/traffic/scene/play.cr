@@ -102,15 +102,20 @@ module Traffic
       vehicle_type = (Random.rand < 0.1) ? VehicleType::Priority : VehicleType::Civilian
       choice = Random.rand(4)
 
-      case choice
-      when 0 # Eastbound (Bottom lane of row 3, centered at 96px from top)
-        @vehicles << Vehicle.new(vehicle_type, GSDL::Direction::East, -128, 3*128 + 80)
-      when 1 # Westbound (Top lane of row 3, centered at 32px from top)
-        @vehicles << Vehicle.new(vehicle_type, GSDL::Direction::West, 20*128, 3*128 + 16)
-      when 2 # Southbound (Left lane of col 4, centered at 32px from left)
-        @vehicles << Vehicle.new(vehicle_type, GSDL::Direction::South, 4*128 + 16, -128)
-      when 3 # Northbound (Right lane of col 4, centered at 96px from left)
-        @vehicles << Vehicle.new(vehicle_type, GSDL::Direction::North, 4*128 + 80, 11*128)
+      new_vehicle = case choice
+                    when 0 # Eastbound (Bottom lane of row 3, centered at 96px from top)
+                      Vehicle.new(vehicle_type, GSDL::Direction::East, -128, 3*128 + 80)
+                    when 1 # Westbound (Top lane of row 3, centered at 32px from top)
+                      Vehicle.new(vehicle_type, GSDL::Direction::West, 20*128, 3*128 + 16)
+                    when 2 # Southbound (Left lane of col 4, centered at 32px from left)
+                      Vehicle.new(vehicle_type, GSDL::Direction::South, 4*128 + 16, -128)
+                    when 3 # Northbound (Right lane of col 4, centered at 96px from left)
+                      Vehicle.new(vehicle_type, GSDL::Direction::North, 4*128 + 80, 11*128)
+                    end
+
+      # Safety check: do not spawn if overlapping another vehicle
+      if new_vehicle && @vehicles.none? { |v| v.collides?(new_vehicle) }
+        @vehicles << new_vehicle
       end
     end
 
