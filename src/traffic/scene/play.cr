@@ -115,9 +115,62 @@ module Traffic
                       Vehicle.new(vehicle_type, GSDL::Direction::North, 4*128 + 80, 11*128)
                     end
 
-      # Safety check: do not spawn if overlapping another vehicle
-      if new_vehicle && @vehicles.none? { |v| v.collides?(new_vehicle) }
-        @vehicles << new_vehicle
+      if new_vehicle
+        # Precalculate path
+        # Simple heuristic: for each intersection in current direction, roll for right turn
+        # Map is roughly 20x12 tiles
+        current_dir = new_vehicle.direction
+        current_x = new_vehicle.x
+        current_y = new_vehicle.y
+
+        # Safety limit for path length
+        10.times do
+          # Find next intersection in direction
+          next_inter = @intersections.select do |inter|
+            ix = inter.tile_x * 128.0_f32
+            iy = inter.tile_y * 128.0_f32
+            case current_dir
+            when .east?  then ix > current_x && (iy - current_y).abs < 64
+            when .west?  then ix < current_x && (iy - current_y).abs < 64
+            when .north? then iy < current_y && (ix - current_x).abs < 64
+            when .south? then iy > current_y && (ix - current_x).abs < 64
+            else false
+            end
+          end.min_by? do |inter|
+            ix = inter.tile_x * 128.0_f32
+            iy = inter.tile_y * 128.0_f32
+            (ix - current_x).abs + (iy - current_y).abs
+          end
+
+          break unless next_inter
+
+          # Roll for right turn (20% chance)
+          if Random.rand < 0.2
+            new_vehicle.path << IntersectionAction::Right
+            # Update virtual position and direction for next step
+            current_x = next_inter.tile_x * 128.0_f32
+            current_y = next_inter.tile_y * 128.0_f32
+            current_dir = case current_dir
+                          when .east?  then GSDL::Direction::South
+                          when .west?  then GSDL::Direction::North
+                          when .north? then GSDL::Direction::East
+                          when .south? then GSDL::Direction::West
+                          else current_dir
+                          end
+          else
+            new_vehicle.path << IntersectionAction::Straight
+            current_x = next_inter.tile_x * 128.0_f32
+            current_y = next_inter.tile_y * 128.0_f32
+          end
+        end
+
+        # Initialize first action
+        new_vehicle.next_action = new_vehicle.path.shift? || IntersectionAction::Straight
+
+        # Safety check: do not spawn if overlapping another vehicle
+        if @vehicles.none? { |v| v.collides?(new_vehicle) }
+          @vehicles << new_vehicle
+        end
       end
     end
 

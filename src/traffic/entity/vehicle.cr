@@ -10,6 +10,12 @@ module Traffic
     ROAD_RAGE  = 35.0_f32
   end
 
+  enum IntersectionAction
+    Straight
+    Right
+    Left
+  end
+
   class Vehicle < GSDL::Sprite
     include GSDL::Collidable
 
@@ -19,12 +25,13 @@ module Traffic
     property? wrecked : Bool = false
     property time_to_destination : Float32 = 0.0_f32
     property frustration : Float32 = 0.0_f32
+    property path = Deque(IntersectionAction).new
+    property next_action : IntersectionAction = IntersectionAction::Straight
 
     @original_speed : Float32
     @honk_timer : GSDL::Timer
     @rage_cooldown : GSDL::Timer
-    @last_intersection : Intersection? = nil
-    @intends_to_turn : Bool = false
+    @last_intersection : Intersection?
     @safety_timer : GSDL::Timer? = nil
 
     def patient?    ; @frustration < PatienceThresholds::ANXIOUS; end
@@ -32,11 +39,11 @@ module Traffic
     def frustrated? ; @frustration >= PatienceThresholds::FRUSTRATED && @frustration < PatienceThresholds::ROAD_RAGE; end
     def road_rage?  ; @frustration >= PatienceThresholds::ROAD_RAGE; end
 
-    def initialize(@vehicle_type, direction : GSDL::Direction, x, y)
+    def initialize(@vehicle_type : VehicleType, direction : GSDL::Direction, x : Int32 | Float32, y : Int32 | Float32)
       @honk_timer = GSDL::Timer.new(Time::Span.new(seconds: Random.rand(4..8)))
       @honk_timer.start
       @rage_cooldown = GSDL::Timer.new(2.seconds)
-      
+
       @original_speed = case @vehicle_type
                         when VehicleType::Priority
                           @time_to_destination = 60.0_f32
@@ -144,8 +151,8 @@ module Traffic
 
       unless @waiting
         # Speed adjustment for preparing to turn
-        target_speed = @intends_to_turn ? @original_speed * 0.5_f32 : @original_speed
-        
+        target_speed = @next_action.straight? ? @original_speed : @original_speed * 0.5_f32
+
         # Smoothly interpolate speed
         if @speed < target_speed
           @speed += 400.0_f32 * dt
@@ -175,7 +182,7 @@ module Traffic
     private def update_frustration(dt : Float32)
       if @waiting
         @frustration += dt * 2.0
-        
+
         # Audio triggers for state transitions
         if road_rage? && !@rage_cooldown.started?
           GSDL::AudioManager.get("rage_trigger").play
@@ -217,9 +224,9 @@ module Traffic
       if current_inter
         if current_inter != @last_intersection
           @last_intersection = current_inter
-          
-          # Only proceed if we have pre-rolled intent to turn
-          if @intends_to_turn
+
+          # Only proceed if we have an action to perform
+          if @next_action.right?
             inter_px = current_inter.tile_x * 128.0_f32
             inter_py = current_inter.tile_y * 128.0_f32
 
@@ -293,7 +300,7 @@ module Traffic
                 # Keep @last_intersection so we don't try again for THIS intersection
               else
                 # Success!
-                @intends_to_turn = false
+                @next_action = path.shift? || IntersectionAction::Straight
                 @safety_timer = GSDL::Timer.new(0.5.seconds)
                 @safety_timer.try(&.start)
               end
@@ -301,11 +308,14 @@ module Traffic
                 # Didn't reach turn point yet, reset last_intersection so we check again next frame
                 @last_intersection = nil
             end
+          elsif @next_action.straight?
+            # We already reached the intersection, we are going straight.
+            # Pop the next action for the NEXT intersection.
+            @next_action = path.shift? || IntersectionAction::Straight
           end
         end
       else
         @last_intersection = nil
-        @intends_to_turn = false # Reset intent if we leave the intersection box
       end
     end
 
@@ -329,14 +339,6 @@ module Traffic
 
       intersections.each do |inter|
         if inter.clicked?(check_x, check_y)
-          # If we just entered a new intersection (not yet @last_intersection), roll for turn
-          if inter != @last_intersection
-            # Only roll once per intersection
-            unless @intends_to_turn
-              @intends_to_turn = (Random.rand < 0.3)
-            end
-          end
-
           # If already inside, don't stop
           next if is_inside_intersection
 
