@@ -66,7 +66,7 @@ module Traffic
       @map.update(dt)
       @intersections.each(&.update(dt))
 
-      @vehicles.each(&.update(dt, @intersections))
+      @vehicles.each(&.update(dt, @intersections, @vehicles))
       @vehicles.reject!(&.off_screen?)
 
       camera.update(dt)
