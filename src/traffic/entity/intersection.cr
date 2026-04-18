@@ -13,7 +13,7 @@ module Traffic
     @tile_x : Int32
     @tile_y : Int32
 
-    def initialize(@tile_x, @tile_y, switch_seconds : Int32 = 30)
+    def initialize(@tile_x, @tile_y, switch_seconds : Int32 = 60)
       # Position in pixels based on tile coordinates
       px = @tile_x * 128
       py = @tile_y * 128
