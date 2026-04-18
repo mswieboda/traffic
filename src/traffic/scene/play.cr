@@ -8,6 +8,7 @@ module Traffic
       
       # Assets are loaded automatically via Traffic::Game hooks
       @map = GSDL::TileMapManager.get("traffic")
+      @map.z_index = -10
       
       # Find intersections in the map (gid 6)
       @map.layers.each do |layer|

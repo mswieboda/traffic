@@ -72,9 +72,9 @@ module Traffic
       py = @tile_y * 64.0_f32
 
       # NS Signal (Vertical)
-      # Position: Right side of vertical road, centered horizontally at px + 52
+      # Position: Right side of vertical road, moved down 32px
       ns_x = px + 44.0_f32
-      ns_y = py
+      ns_y = py + 32.0_f32
       draw.texture(
         texture: GSDL::TextureManager.get("signal"),
         dest_rect: GSDL::FRect.new(x: ns_x, y: ns_y, w: 16, h: 64),
@@ -82,9 +82,9 @@ module Traffic
       )
       
       # EW Signal (Horizontal)
-      # Position: Centered vertically on road at py + 32
+      # Position: Centered vertically on road, moved left 32px (center at px + 0)
       # We'll rotate around its own center (8, 32)
-      ew_center_x = px + 32.0_f32
+      ew_center_x = px
       ew_center_y = py + 32.0_f32
       
       ew_rect_x = ew_center_x - 8.0_f32
