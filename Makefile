@@ -89,11 +89,11 @@ release-package:
 		$(if $(BUNDLE_ID),--bundle-id=$(BUNDLE_ID)) \
 		$(if $(OUTPUT),--output=$(OUTPUT))
 
-release-package-mac:
-	@$(MAKE) release-package TARGET=mac
+release-package-mac: TARGET := mac
+release-package-mac: release-package
 
-release-package-win:
-	@$(MAKE) release-package TARGET=win
+release-package-win: TARGET := win
+release-package-win: release-package
 
-release-package-linux:
-	@$(MAKE) release-package TARGET=linux
+release-package-linux: TARGET := linux
+release-package-linux: release-package
