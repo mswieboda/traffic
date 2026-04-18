@@ -53,5 +53,13 @@ module Traffic
         {"traffic", "maps/traffic.json"},
       ]
     end
+
+    def load_audio : Array(Tuple(String, String))
+      [
+        {"honk", "sfx/honk.wav"},
+        {"crash", "sfx/crash.wav"},
+        {"rage_trigger", "sfx/rage_trigger.wav"},
+      ]
+    end
   end
 end
