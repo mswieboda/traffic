@@ -6,6 +6,7 @@ module Traffic
 
   enum PatienceState
     Patient
+    Anxious
     Frustrated
     RoadRage
   end
@@ -22,9 +23,14 @@ module Traffic
     property frustration : Float32 = 0.0_f32
 
     @original_speed : Float32
-    @honk_timer : Float32 = 0.0
+    @honk_timer : GSDL::Timer
+    @rage_cooldown : GSDL::Timer
 
     def initialize(@vehicle_type, direction : GSDL::Direction, x, y)
+      @honk_timer = GSDL::Timer.new(Time::Span.new(seconds: Random.rand(4..8)))
+      @honk_timer.start
+      @rage_cooldown = GSDL::Timer.new(Time::Span.new(seconds: 10))
+      
       @original_speed = case @vehicle_type
                         when VehicleType::Priority
                           @time_to_destination = 60.0_f32
@@ -136,11 +142,13 @@ module Traffic
     private def update_frustration(dt : Float32)
       if @waiting
         @frustration += dt
-        # Frustration Thresholds
-        new_state = if @frustration > 15.0
+        # Frustration Thresholds (Max frustration for RoadRage is now 35.0)
+        new_state = if @frustration > 35.0
                       PatienceState::RoadRage
-                    elsif @frustration > 5.0
+                    elsif @frustration > 20.0
                       PatienceState::Frustrated
+                    elsif @frustration > 5.0
+                      PatienceState::Anxious
                     else
                       PatienceState::Patient
                     end
@@ -148,36 +156,37 @@ module Traffic
         if new_state != @patience_state
           if new_state == PatienceState::RoadRage
             GSDL::AudioManager.get("rage_trigger").play
+            @rage_cooldown.start
           end
           @patience_state = new_state
+          # Reset honk timer when entering Frustrated
+          if new_state == PatienceState::Frustrated
+            @honk_timer.restart
+          end
         end
 
-        # Periodic honking when frustrated
-        if @patience_state == PatienceState::Frustrated
-          @honk_timer -= dt
-          if @honk_timer <= 0
+        # Honking ONLY when frustrated (Orange)
+        if @patience_state == PatienceState::Frustrated && @honk_timer.done?
             GSDL::AudioManager.get("honk").play
-            @honk_timer = Random.rand(1.5_f32..3.5_f32)
-          end
-        elsif @patience_state == PatienceState::RoadRage
-          @honk_timer -= dt
-          if @honk_timer <= 0
-            GSDL::AudioManager.get("honk").play
-            @honk_timer = Random.rand(0.5_f32..1.5_f32) # Honk more in road rage
-          end
+            @honk_timer.duration = Time::Span.new(seconds: Random.rand(4..8))
+            @honk_timer.restart
         end
       else
         # Gradually calm down when moving
-        @frustration -= dt * 0.5
-        @frustration = 0.0 if @frustration < 0
-
-        # Keep RoadRage if they already hit it?
-        # Actually, let's keep them somewhat aggressive for a bit.
-        if @patience_state == PatienceState::Frustrated && @frustration < 4.0
-          @patience_state = PatienceState::Patient
+        if @patience_state == PatienceState::RoadRage && @rage_cooldown.running?
+          # Do nothing, wait for cooldown
+        else
+          @frustration -= dt * 0.5
+          @frustration = 0.0 if @frustration < 0
         end
-        if @patience_state == PatienceState::RoadRage && @frustration < 12.0
+
+        # State transitions during calm down
+        if @patience_state == PatienceState::RoadRage && @frustration < 32.0
           @patience_state = PatienceState::Frustrated
+        elsif @patience_state == PatienceState::Frustrated && @frustration < 18.0
+          @patience_state = PatienceState::Anxious
+        elsif @patience_state == PatienceState::Anxious && @frustration < 4.0
+          @patience_state = PatienceState::Patient
         end
       end
     end
@@ -271,12 +280,14 @@ module Traffic
         draw.rect_fill(GSDL::FRect.new(bar_x, bar_y, bar_w, bar_h), GSDL::Color.new(30, 30, 30, 150), z_index + 1)
 
         # Foreground
-        percent = Math.min(1.0_f32, @frustration / 15.0_f32)
+        percent = Math.min(1.0_f32, @frustration / 35.0_f32)
         color = case @patience_state
                 when PatienceState::RoadRage
                   GSDL::Color.new(255, 50, 50, 255) # Red
                 when PatienceState::Frustrated
-                  GSDL::Color.new(255, 200, 50, 255) # Yellow/Orange
+                  GSDL::Color.new(255, 120, 50, 255) # Orange
+                when PatienceState::Anxious
+                  GSDL::Color.new(255, 255, 50, 255) # Yellow
                 else
                   GSDL::Color.new(100, 255, 100, 255) # Green
                 end

@@ -8,7 +8,7 @@ module Traffic
 
   class Intersection < GSDL::Sprite
     property state : IntersectionSignal = IntersectionSignal::GreenNS
-    @timer : Float32 = 0.0
+    @state_timer : GSDL::Timer
     @tile_x : Int32
     @tile_y : Int32
 
@@ -17,22 +17,14 @@ module Traffic
       px = @tile_x * 128
       py = @tile_y * 128
 
-      # The signal sprite will be drawn twice, but for now let's just make it a composite or something.
-      # Actually, let's just use GSDL::Draw to draw the signal indicator.
-      # But the user asked for a 16x64 signal graphic.
-
-      # We'll place two signals: one for NS (vertical) and one for EW (horizontal).
-      # For now, let's just place one and see how it looks.
       super("signal", px + 128 - 20, py + 2)
       @state = IntersectionSignal::GreenNS
+      @state_timer = GSDL::Timer.new(3.seconds)
     end
 
     def update(dt : Float32)
-      if @state == IntersectionSignal::YellowNS || @state == IntersectionSignal::YellowEW
-        @timer -= dt
-        if @timer <= 0
-          next_state
-        end
+      if @state_timer.running? && @state_timer.done?
+        next_state
       end
     end
 
@@ -45,16 +37,19 @@ module Traffic
       else
         # No auto-transition from Green for now
       end
+      @state_timer.stop
     end
 
     def toggle
+      return if @state_timer.running?
+
       case @state
       when IntersectionSignal::GreenNS
         @state = IntersectionSignal::YellowNS
-        @timer = 3.0
+        @state_timer.start
       when IntersectionSignal::GreenEW
         @state = IntersectionSignal::YellowEW
-        @timer = 3.0
+        @state_timer.start
       else
         # Transitioning, ignore
       end

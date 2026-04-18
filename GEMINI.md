@@ -65,6 +65,7 @@ GSDL uses a hook-based system for loading assets. Define these hooks in your `Ga
 ## Coding / Convention Standards
 - **Formatting:** Do not run `crystal format`.
 - **Whitespace:** Trim all trailing whitespace. Ensure exactly one trailing newline followed by an empty line (double newline total) at the end of every file.
+- **Timers:** Use `GSDL::Timer` for all time-based logic and delays instead of float-based decrementing timers.
 - **Separation of Concerns:** Keep the **Update** logic (physics, collision, state) separated from the **Draw** logic.
 
 ## Compiling and Testing

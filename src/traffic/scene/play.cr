@@ -4,7 +4,7 @@ module Traffic
     @intersections : Array(Intersection) = [] of Intersection
     @vehicles : Array(Vehicle) = [] of Vehicle
 
-    @spawn_timer : Float32 = 0.0
+    @spawn_timer : GSDL::Timer
     @spawn_interval : Float32 = 0.5 # Faster spawn for testing
 
     def initialize
@@ -19,6 +19,9 @@ module Traffic
       camera.zoom = 0.5_f32
       camera.set_boundary(@map)
       camera.speed = 1000.0_f32 # Faster camera for larger map
+
+      @spawn_timer = GSDL::Timer.new(@spawn_interval.seconds)
+      @spawn_timer.start
 
       # Find intersections in the map (gid 6)
       @map.layers.each do |layer|
@@ -44,19 +47,20 @@ module Traffic
       # Zoom controls
       if GSDL::Input.action?(:zoom_in)
         camera.zoom += 1.0_f32 * dt
+        camera.zoom = 2_f32 if camera.zoom > 2_f32
       end
       if GSDL::Input.action?(:zoom_out)
         camera.zoom -= 1.0_f32 * dt
+        camera.zoom = 0.25_f32 if camera.zoom < 0.25_f32
       end
 
       # Mouse wheel zoom
       wheel_y = GSDL::Mouse.wheel_y
       if wheel_y != 0
         camera.zoom += wheel_y * 0.1_f32
+        camera.zoom = 0.25_f32 if camera.zoom < 0.25_f32
+        camera.zoom = 2_f32 if camera.zoom > 2_f32
       end
-
-      camera.zoom = 0.25_f32 if camera.zoom < 0.25_f32
-      camera.zoom = 2_f32 if camera.zoom > 2_f32
 
       # Toggle intersections on click
       if GSDL::Mouse.just_pressed?(GSDL::Mouse::ButtonLeft)
@@ -81,10 +85,9 @@ module Traffic
     end
 
     private def update_spawner(dt : Float32)
-      @spawn_timer -= dt
-      if @spawn_timer <= 0
+      if @spawn_timer.done?
         spawn_vehicle
-        @spawn_timer = @spawn_interval
+        @spawn_timer.restart
       end
     end
 
