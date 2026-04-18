@@ -24,6 +24,8 @@ module Traffic
     @honk_timer : GSDL::Timer
     @rage_cooldown : GSDL::Timer
     @last_intersection : Intersection? = nil
+    @intends_to_turn : Bool = false
+    @safety_timer : GSDL::Timer? = nil
 
     def patient?    ; @frustration < PatienceThresholds::ANXIOUS; end
     def anxious?    ; @frustration >= PatienceThresholds::ANXIOUS && @frustration < PatienceThresholds::FRUSTRATED; end
@@ -107,14 +109,17 @@ module Traffic
 
       @waiting = false
 
-      # Check for collisions with other vehicles
-      all_vehicles.each do |other|
-        next if other == self
-        if self.collides?(other)
-          @wrecked = true
-          other.wrecked = true
-          GSDL::AudioManager.get("crash").play
-          return
+      # Check for collisions with other vehicles (Wreck state)
+      # Skip if in safety mode (just after a turn)
+      unless @safety_timer.try(&.running?)
+        all_vehicles.each do |other|
+          next if other == self
+          if self.collides?(other)
+            @wrecked = true
+            other.wrecked = true
+            GSDL::AudioManager.get("crash").play
+            return
+          end
         end
       end
 
@@ -141,6 +146,18 @@ module Traffic
       end
 
       unless @waiting
+        # Speed adjustment for preparing to turn
+        target_speed = @intends_to_turn ? @original_speed * 0.5_f32 : @original_speed
+        
+        # Smoothly interpolate speed
+        if @speed < target_speed
+          @speed += 400.0_f32 * dt
+          @speed = target_speed if @speed > target_speed
+        elsif @speed > target_speed
+          @speed -= 400.0_f32 * dt
+          @speed = target_speed if @speed < target_speed
+        end
+
         # Basic movement
         dx = 0.0_f32
         dy = 0.0_f32
@@ -204,8 +221,8 @@ module Traffic
         if current_inter != @last_intersection
           @last_intersection = current_inter
           
-          # 30% chance to turn right
-          if Random.rand < 0.3
+          # Only proceed if we have pre-rolled intent to turn
+          if @intends_to_turn
             inter_px = current_inter.tile_x * 128.0_f32
             inter_py = current_inter.tile_y * 128.0_f32
 
@@ -279,6 +296,9 @@ module Traffic
                 # Keep @last_intersection so we don't try again for THIS intersection
               else
                 # Success!
+                @intends_to_turn = false
+                @safety_timer = GSDL::Timer.new(0.5.seconds)
+                @safety_timer.try(&.start)
               end
             else
                 # Didn't reach turn point yet, reset last_intersection so we check again next frame
@@ -288,6 +308,7 @@ module Traffic
         end
       else
         @last_intersection = nil
+        @intends_to_turn = false # Reset intent if we leave the intersection box
       end
     end
 
@@ -311,6 +332,14 @@ module Traffic
 
       intersections.each do |inter|
         if inter.clicked?(check_x, check_y)
+          # If we just entered a new intersection (not yet @last_intersection), roll for turn
+          if inter != @last_intersection
+            # Only roll once per intersection
+            unless @intends_to_turn
+              @intends_to_turn = (Random.rand < 0.3)
+            end
+          end
+
           # If already inside, don't stop
           next if is_inside_intersection
 
