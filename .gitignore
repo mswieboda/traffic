@@ -9,3 +9,5 @@
 
 /.vfox/
 *.vfox*
+
+.gemini/
