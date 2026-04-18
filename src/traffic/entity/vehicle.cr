@@ -105,7 +105,7 @@ module Traffic
 
       return if @wrecked
 
-      update_frustration(dt)
+      update_frustration(dt) unless @vehicle_type == VehicleType::Priority
 
       @waiting = false
 
@@ -135,10 +135,7 @@ module Traffic
 
       unless @waiting
         # Intersection check (incorporating red lights into halting)
-        # Road Rage vehicles and Priority vehicles ignore traffic signals
-        unless road_rage? || @vehicle_type == VehicleType::Priority
-          check_intersections(intersections)
-        end
+        check_intersections(intersections)
       end
 
       unless @waiting
@@ -342,6 +339,9 @@ module Traffic
 
           # If already inside, don't stop
           next if is_inside_intersection
+
+          # Priority and Road Rage vehicles ignore signals
+          next if road_rage? || @vehicle_type == VehicleType::Priority
 
           case self.direction
           when .north?, .south?
