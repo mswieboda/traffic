@@ -204,7 +204,6 @@ module Traffic
       [{"L1", Lane1}, {"L2", Lane2}, {"L3", Lane3}, {"L4", Lane4}].each do |label, offset|
         ly = 6 * TileSize + offset - cam_y
         draw.rect_fill(GSDL::FRect.new(0 - cam_x, ly - thickness/2, 14 * TileSize, thickness), debug_color, 10)
-        # draw.text_engine.draw(label, 10 - cam_x, ly - 20, GSDL::Color::White, 10) # Using HUD or simple draw.text if available
       end
       
       # Vertical lanes (Col 7, 8)

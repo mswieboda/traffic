@@ -48,25 +48,22 @@ module Traffic
       @speed = @original_speed
 
       self.direction = direction
-      super(current_texture_key, x, y)
-
-      # No rotation needed anymore as we use directional assets
+      # Use center origin for perfect lane alignment
+      super(current_texture_key, x, y, origin: {0.5_f32, 0.5_f32})
       self.rotation = 0.0
     end
 
     def collision_bounding_box : GSDL::FRect
-      # Use intrinsic texture size without transformation
-      GSDL::FRect.new(0, 0, width, height)
+      # Box is relative to origin (center), so offsets are -half_size
+      GSDL::FRect.new(-width / 2.0_f32, -height / 2.0_f32, width, height)
     end
 
     def width : Float32
-      tex_size = GSDL::TextureManager.get(current_texture_key).size
-      tex_size[0]
+      GSDL::TextureManager.get(current_texture_key).size[0].to_f32
     end
 
     def height : Float32
-      tex_size = GSDL::TextureManager.get(current_texture_key).size
-      tex_size[1]
+      GSDL::TextureManager.get(current_texture_key).size[1].to_f32
     end
 
     private def current_texture_key : String
@@ -78,7 +75,7 @@ module Traffic
     end
 
     def look_ahead_box : GSDL::FRect
-      box = collision_box
+      box = collision_box # World space centered box
       look_dist = 24.0_f32
 
       case self.direction
@@ -86,21 +83,20 @@ module Traffic
       when .west?  then GSDL::FRect.new(box.left - look_dist, box.y, look_dist, box.h)
       when .north? then GSDL::FRect.new(box.x, box.y - look_dist, box.w, look_dist)
       when .south? then GSDL::FRect.new(box.x, box.bottom, box.w, look_dist)
-      else box # fallback
+      else box
       end
     end
 
     def clicked?(mx : Float32, my : Float32) : Bool
-      box = collision_box
-      mx >= box.x && mx < box.x + box.w && my >= box.y && my < box.y + box.h
+      collision_box.overlaps?(GSDL::FRect.new(mx, my, 1, 1))
     end
 
     def project_path_segments(intersections : Array(Intersection)) : Array(GSDL::FRect)
       segments = [] of GSDL::FRect
       thickness = 8.0_f32
       
-      cx = self.x + width / 2.0_f32
-      cy = self.y + height / 2.0_f32
+      # Starting at vehicle center
+      cx, cy = self.x, self.y
       
       cdir = self.direction
       actions = [@next_action] + path.to_a
@@ -127,8 +123,7 @@ module Traffic
         inter_px = next_inter.tile_x * TileSize
         inter_py = next_inter.tile_y * TileSize
         
-        turn_x = cx
-        turn_y = cy
+        turn_x, turn_y = cx, cy
         
         if action.right? || action.left?
           case cdir
@@ -156,16 +151,12 @@ module Traffic
         seg_y = (cy < turn_y ? cy : turn_y).to_f32 - (thickness / 2.0_f32)
         seg_w = (cx - turn_x).abs.to_f32 + thickness
         seg_h = (cy - turn_y).abs.to_f32 + thickness
-        
         segments << GSDL::FRect.new(seg_x, seg_y, seg_w, seg_h)
-        
-        cx = turn_x
-        cy = turn_y
+        cx, cy = turn_x, turn_y
       end
       
       end_dist = 2000.0_f32
-      final_x = cx
-      final_y = cy
+      final_x, final_y = cx, cy
       case cdir
       when .east?  then final_x += end_dist
       when .west?  then final_x -= end_dist
@@ -186,23 +177,17 @@ module Traffic
       if @vehicle_type == VehicleType::Priority
         decay_rate = 1.0_f32
         if @waiting
-          if is_waiting_on_wreck?(all_vehicles)
-            decay_rate = 10.0_f32
-          else
-            decay_rate = 3.0_f32
-          end
+          decay_rate = is_waiting_on_wreck?(all_vehicles) ? 10.0_f32 : 3.0_f32
         end
         @time_to_destination -= dt * decay_rate
         @time_to_destination = 0.0_f32 if @time_to_destination < 0
       end
 
       return if @wrecked
-
       update_frustration(dt) unless @vehicle_type == VehicleType::Priority
-
       @waiting = false
 
-      # Check for collisions with other vehicles
+      # Check for collisions
       unless @safety_timer.try(&.running?)
         all_vehicles.each do |other|
           next if other == self
@@ -215,7 +200,7 @@ module Traffic
         end
       end
 
-      # Lane-halting logic: look ahead
+      # Lane-halting logic
       look_box = look_ahead_box
       all_vehicles.each do |other|
         next if other == self
@@ -243,14 +228,13 @@ module Traffic
           @speed = target_speed if @speed < target_speed
         end
 
-        dx = 0.0_f32
-        dy = 0.0_f32
+        dx, dy = 0.0_f32, 0.0_f32
         case self.direction
         when .east?  then dx = 1.0_f32
         when .west?  then dx = -1.0_f32
         when .north? then dy = -1.0_f32
         when .south? then dy = 1.0_f32
-        else # ignore others
+        else # ignore
         end
 
         self.x += dx * @speed * dt
@@ -287,10 +271,8 @@ module Traffic
     end
 
     private def handle_turns(intersections : Array(Intersection), all_vehicles : Array(Vehicle))
-      check_x = self.x + width / 2.0_f32
-      check_y = self.y + height / 2.0_f32
-
-      current_inter = intersections.find { |inter| inter.clicked?(check_x, check_y) }
+      # self.x, self.y IS the center now
+      current_inter = intersections.find { |inter| inter.clicked?(self.x, self.y) }
 
       if current_inter
         if current_inter != @last_intersection
@@ -302,8 +284,7 @@ module Traffic
 
             can_turn = false
             new_dir = self.direction
-            new_x = self.x
-            new_y = self.y
+            new_x, new_y = self.x, self.y
             threshold = ThresholdTurn
 
             if @next_action.right?
@@ -381,8 +362,8 @@ module Traffic
 
     private def check_intersections(intersections)
       look_ahead = 40.0_f32
-      check_x = self.x + width / 2.0_f32
-      check_y = self.y + height / 2.0_f32
+      # self.x, self.y IS the center
+      check_x, check_y = self.x, self.y
       is_inside_intersection = intersections.any? { |inter| inter.clicked?(check_x, check_y) }
 
       case self.direction
@@ -427,13 +408,16 @@ module Traffic
       draw.scale = GSDL::Game.camera.zoom
       cam_x, cam_y = GSDL::Game.camera.x, GSDL::Game.camera.y
       flip = self.direction.west? ? GSDL::TileMap::Flip::Horizontal : GSDL::TileMap::Flip::None
+      
       tex = GSDL::TextureManager.get(current_texture_key)
-      tex_size = tex.size
+      tw, th = tex.size[0].to_f32, tex.size[1].to_f32
+
       tint_color = @wrecked ? GSDL::Color.new(40, 40, 40) : (@vehicle_type == VehicleType::Priority ? GSDL::Color.new(0, 0, 255, 224) : GSDL::Color::White)
 
+      # Draw centered at self.x, self.y
       draw.texture(
         texture: tex,
-        dest_rect: GSDL::FRect.new(x: self.x - cam_x, y: self.y - cam_y, w: tex_size[0], h: tex_size[1]),
+        dest_rect: GSDL::FRect.new(x: self.x - (tw/2.0_f32) - cam_x, y: self.y - (th/2.0_f32) - cam_y, w: tw, h: th),
         flip: flip,
         tint: tint_color,
         z_index: z_index
@@ -441,8 +425,8 @@ module Traffic
 
       unless @wrecked || patient?
         bar_w, bar_h = 40.0_f32, 6.0_f32
-        bar_x = self.x - cam_x + (tex_size[0] / 2.0_f32) - (bar_w / 2.0_f32)
-        bar_y = self.y - cam_y - 12.0_f32
+        bar_x = self.x - cam_x - (bar_w / 2.0_f32)
+        bar_y = self.y - cam_y - (th / 2.0_f32) - 12.0_f32
         draw.rect_fill(GSDL::FRect.new(bar_x, bar_y, bar_w, bar_h), GSDL::Color.new(30, 30, 30, 150), z_index + 1)
         percent = Math.min(1.0_f32, @frustration / PatienceThresholds::ROAD_RAGE)
         color = road_rage? ? GSDL::Color.new(255, 50, 50) : (frustrated? ? GSDL::Color.new(255, 120, 50) : (anxious? ? GSDL::Color.new(255, 255, 50) : GSDL::Color.new(100, 255, 100)))
