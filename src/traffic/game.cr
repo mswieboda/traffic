@@ -12,13 +12,11 @@ module Traffic
 
       # Configure Cyberpunk Color Scheme
       GSDL::ColorScheme.configure(
-        ui_bg:      "#050505", # Deep black
-        ui_text:    "#99FF33", # Neon Lime
-        main:       "#99FF33", # Neon Lime
-        alt:        "#FFAA00", # Orange-Yellow (Powered)
-        highlight:  "#FF3366", # Pink/Red (Battery)
-        success:    "#00FF00", # Pure Lime
-        danger:     "#FF3366"  # Red
+        ui_bg:        "#131313", # Blackish
+        ui_text:      "#FFFFFF", # Neon Lime
+        ui_text_alt:  "#99FF33", # Neon Lime
+        ui_hover:     "#99FF33", # white
+        main:         "#99FF33", # Neon Lime
       )
     end
 
