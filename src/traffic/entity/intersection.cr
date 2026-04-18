@@ -1,8 +1,10 @@
 module Traffic
   enum IntersectionSignal
     GreenNS
+    GreenNSLeft
     YellowNS
     GreenEW
+    GreenEWLeft
     YellowEW
   end
 
@@ -17,11 +19,11 @@ module Traffic
 
     def initialize(@tile_x, @tile_y, switch_seconds : Int32 = 60)
       # Position in pixels based on tile coordinates
-      px = @tile_x * 128
-      py = @tile_y * 128
+      px = @tile_x * TileSize
+      py = @tile_y * TileSize
 
       @switch_interval = switch_seconds.seconds
-      super("signal", px + 128 - 20, py + 2)
+      super("signal", px + TileSize - 20, py + 2)
       @state = IntersectionSignal::GreenNS
       @state_timer = GSDL::Timer.new(@switch_interval)
       @state_timer.start
@@ -31,6 +33,10 @@ module Traffic
       if @state_timer.done?
         case @state
         when IntersectionSignal::GreenNS
+          @state = IntersectionSignal::GreenNSLeft
+          @state_timer.duration = 10.seconds
+          @state_timer.restart
+        when IntersectionSignal::GreenNSLeft
           @state = IntersectionSignal::YellowNS
           @state_timer.duration = 3.seconds
           @state_timer.restart
@@ -39,6 +45,10 @@ module Traffic
           @state_timer.duration = @switch_interval
           @state_timer.restart
         when IntersectionSignal::GreenEW
+          @state = IntersectionSignal::GreenEWLeft
+          @state_timer.duration = 10.seconds
+          @state_timer.restart
+        when IntersectionSignal::GreenEWLeft
           @state = IntersectionSignal::YellowEW
           @state_timer.duration = 3.seconds
           @state_timer.restart
@@ -51,15 +61,15 @@ module Traffic
     end
 
     def toggle
-      # Manual toggle can still work, just restart the timer for the new state
+      # Manual toggle can still work, just restart the timer for the next phase
       case @state
       when IntersectionSignal::GreenNS
-        @state = IntersectionSignal::YellowNS
-        @state_timer.duration = 3.seconds
+        @state = IntersectionSignal::GreenNSLeft
+        @state_timer.duration = 10.seconds
         @state_timer.restart
       when IntersectionSignal::GreenEW
-        @state = IntersectionSignal::YellowEW
-        @state_timer.duration = 3.seconds
+        @state = IntersectionSignal::GreenEWLeft
+        @state_timer.duration = 10.seconds
         @state_timer.restart
       else
         # Transitioning, ignore
@@ -68,29 +78,29 @@ module Traffic
 
 
     def clicked?(mx, my)
-      px = @tile_x * 128
-      py = @tile_y * 128
-      mx >= px && mx < px + 128 && my >= py && my < py + 128
+      px = @tile_x * TileSize
+      py = @tile_y * TileSize
+      mx >= px && mx < px + TileSize && my >= py && my < py + TileSize
     end
 
     def draw(draw : GSDL::Draw)
       # Common coordinates for the tile in world space
-      px = @tile_x * 128.0_f32
-      py = @tile_y * 128.0_f32
+      px = @tile_x * TileSize
+      py = @tile_y * TileSize
 
       # NS Signal (Vertical)
       # 3/4 (12px) inside right edge, 1/4 (4px) outside.
-      # Right edge is px + 128. So ns_x = px + 128 - 12 = px + 116.
-      ns_x = px + 116.0_f32
+      # Right edge is px + TileSize. So ns_x = px + TileSize - 12.
+      ns_x = px + (TileSize - 12.0_f32)
       ns_y = py + 16.0_f32
 
       # EW Signal (Horizontal)
       # 3/4 (12px) inside bottom edge, 1/4 (4px) outside.
-      # Bottom edge is py + 128. Signal "height" is 16.
+      # Bottom edge is py + TileSize. Signal "height" is 16.
       # Bottom of signal is ew_center_y + 8.
-      # So ew_center_y + 8 = py + 128 + 4 => ew_center_y = py + 124.
+      # So ew_center_y + 8 = py + TileSize + 4 => ew_center_y = py + TileSize - 4.
       ew_center_x = px + 24.0_f32
-      ew_center_y = py + 124.0_f32
+      ew_center_y = py + (TileSize - 4.0_f32)
 
       ew_rect_x = ew_center_x - 8.0_f32
       ew_rect_y = ew_center_y - 32.0_f32
@@ -124,14 +134,22 @@ module Traffic
 
       # Glow effect for active lights (GSDL::Shape handles camera automatically)
       glow_color = GSDL::Color.new(red: 255, green: 255, blue: 255, alpha: 180)
+      left_glow_color = GSDL::Color.new(red: 100, green: 255, blue: 100, alpha: 220)
 
       # NS Glow (Vertical offsets)
       case @state
       when IntersectionSignal::GreenNS
         draw.circle_fill(ns_x + 8, ns_y + 52, 6, glow_color, z_index + 1)
+      when IntersectionSignal::GreenNSLeft
+        # Left-turn indicator is usually a separate light or a different color/shape
+        # Rendering a small arrow or just a dedicated green glow for now
+        draw.circle_fill(ns_x + 8, ns_y + 52, 7, left_glow_color, z_index + 1)
+        # Small "arrow" indicator using a triangle/rect
+        draw.rect_fill(GSDL::FRect.new(ns_x + 4, ns_y + 48, 8, 8), left_glow_color, z_index + 2)
       when IntersectionSignal::YellowNS
         draw.circle_fill(ns_x + 8, ns_y + 32, 6, glow_color, z_index + 1)
-      when IntersectionSignal::GreenEW, IntersectionSignal::YellowEW
+      else
+        # Red is at ns_y + 12
         draw.circle_fill(ns_x + 8, ns_y + 12, 6, glow_color, z_index + 1)
       end
 
@@ -140,13 +158,17 @@ module Traffic
       when IntersectionSignal::GreenEW
         # Green is at center - 20
         draw.circle_fill(ew_center_x - 20, ew_center_y, 6, glow_color, z_index + 1)
+      when IntersectionSignal::GreenEWLeft
+        draw.circle_fill(ew_center_x - 20, ew_center_y, 7, left_glow_color, z_index + 1)
+        draw.rect_fill(GSDL::FRect.new(ew_center_x - 24, ew_center_y - 4, 8, 8), left_glow_color, z_index + 2)
       when IntersectionSignal::YellowEW
         # Yellow is at center
         draw.circle_fill(ew_center_x, ew_center_y, 6, glow_color, z_index + 1)
-      when IntersectionSignal::GreenNS, IntersectionSignal::YellowNS
+      else
         # Red is at center + 20
         draw.circle_fill(ew_center_x + 20, ew_center_y, 6, glow_color, z_index + 1)
       end
+
     end
   end
 end

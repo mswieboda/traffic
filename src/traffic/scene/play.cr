@@ -109,31 +109,33 @@ module Traffic
     end
 
     private def spawn_vehicle
-      # 4 spawn points based on current map (128x128 tiles):
+      # 4 spawn points based on current map:
       # Right-hand traffic.
-      # Tile 128px. Two lanes of 64px.
-      # Lane center is 32px or 96px from tile edge.
-      # Horizontal: Y offset = 32-16=16 or 96-16=80.
-      # Vertical: X offset = 32-16=16 or 96-16=80.
+      # 4 lanes (2 each way). 
 
       vehicle_type = (Random.rand < 0.1) ? VehicleType::Priority : VehicleType::Civilian
       choice = Random.rand(4)
 
+      # Determine if we want to turn left at some point
+      will_turn_left = Random.rand < 0.2
+
       new_vehicle = case choice
-                    when 0 # Eastbound (Bottom lane of row 3, centered at 96px from top)
-                      Vehicle.new(vehicle_type, GSDL::Direction::East, -128, 3*128 + 80)
-                    when 1 # Westbound (Top lane of row 3, centered at 32px from top)
-                      Vehicle.new(vehicle_type, GSDL::Direction::West, 20*128, 3*128 + 16)
-                    when 2 # Southbound (Left lane of col 4, centered at 32px from left)
-                      Vehicle.new(vehicle_type, GSDL::Direction::South, 4*128 + 16, -128)
-                    when 3 # Northbound (Right lane of col 4, centered at 96px from left)
-                      Vehicle.new(vehicle_type, GSDL::Direction::North, 4*128 + 80, 11*128)
+                    when 0 # Eastbound (Bottom lanes of row 3)
+                      y_offset = will_turn_left ? Lane3 : Lane4
+                      Vehicle.new(vehicle_type, GSDL::Direction::East, -TileSize, 3 * TileSize + y_offset)
+                    when 1 # Westbound (Top lanes of row 3)
+                      y_offset = will_turn_left ? Lane2 : Lane1
+                      Vehicle.new(vehicle_type, GSDL::Direction::West, 20 * TileSize, 3 * TileSize + y_offset)
+                    when 2 # Southbound (Left lanes of col 4)
+                      x_offset = will_turn_left ? Lane2 : Lane1
+                      Vehicle.new(vehicle_type, GSDL::Direction::South, 4 * TileSize + x_offset, -TileSize)
+                    when 3 # Northbound (Right lanes of col 4)
+                      x_offset = will_turn_left ? Lane3 : Lane4
+                      Vehicle.new(vehicle_type, GSDL::Direction::North, 4 * TileSize + x_offset, 11 * TileSize)
                     end
 
       if new_vehicle
         # Precalculate path
-        # Simple heuristic: for each intersection in current direction, roll for right turn
-        # Map is roughly 20x12 tiles
         current_dir = new_vehicle.direction
         current_x = new_vehicle.x
         current_y = new_vehicle.y
@@ -142,29 +144,40 @@ module Traffic
         10.times do
           # Find next intersection in direction
           next_inter = @intersections.select do |inter|
-            ix = inter.tile_x * 128.0_f32
-            iy = inter.tile_y * 128.0_f32
+            ix = inter.tile_x * TileSize
+            iy = inter.tile_y * TileSize
             case current_dir
-            when .east?  then ix > current_x && (iy - current_y).abs < 64
-            when .west?  then ix < current_x && (iy - current_y).abs < 64
-            when .north? then iy < current_y && (ix - current_x).abs < 64
-            when .south? then iy > current_y && (ix - current_x).abs < 64
+            when .east?  then ix > current_x && (iy - current_y).abs < (TileSize / 2.0_f32)
+            when .west?  then ix < current_x && (iy - current_y).abs < (TileSize / 2.0_f32)
+            when .north? then iy < current_y && (ix - current_x).abs < (TileSize / 2.0_f32)
+            when .south? then iy > current_y && (ix - current_x).abs < (TileSize / 2.0_f32)
             else false
             end
           end.min_by? do |inter|
-            ix = inter.tile_x * 128.0_f32
-            iy = inter.tile_y * 128.0_f32
+            ix = inter.tile_x * TileSize
+            iy = inter.tile_y * TileSize
             (ix - current_x).abs + (iy - current_y).abs
           end
 
           break unless next_inter
 
-          # Roll for right turn (20% chance)
-          if Random.rand < 0.2
+          roll = Random.rand
+          if will_turn_left && roll < 0.4 # higher chance to pick the turn we planned for
+            new_vehicle.path << IntersectionAction::Left
+            will_turn_left = false # Turn performed
+            current_x = next_inter.tile_x * TileSize
+            current_y = next_inter.tile_y * TileSize
+            current_dir = case current_dir
+                          when .east?  then GSDL::Direction::North
+                          when .west?  then GSDL::Direction::South
+                          when .north? then GSDL::Direction::West
+                          when .south? then GSDL::Direction::East
+                          else current_dir
+                          end
+          elsif roll < 0.2
             new_vehicle.path << IntersectionAction::Right
-            # Update virtual position and direction for next step
-            current_x = next_inter.tile_x * 128.0_f32
-            current_y = next_inter.tile_y * 128.0_f32
+            current_x = next_inter.tile_x * TileSize
+            current_y = next_inter.tile_y * TileSize
             current_dir = case current_dir
                           when .east?  then GSDL::Direction::South
                           when .west?  then GSDL::Direction::North
@@ -174,8 +187,8 @@ module Traffic
                           end
           else
             new_vehicle.path << IntersectionAction::Straight
-            current_x = next_inter.tile_x * 128.0_f32
-            current_y = next_inter.tile_y * 128.0_f32
+            current_x = next_inter.tile_x * TileSize
+            current_y = next_inter.tile_y * TileSize
           end
         end
 

@@ -1,3 +1,4 @@
+require "./constants"
 require "./scene/main_menu"
 require "./entity/*"
 
