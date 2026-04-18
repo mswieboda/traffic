@@ -361,16 +361,15 @@ module Traffic
     end
 
     private def check_intersections(intersections)
-      look_ahead = 40.0_f32
-      # self.x, self.y IS the center
+      look_ahead = 16.0_f32 # Reduced look-ahead as we are measuring from front bumper
       check_x, check_y = self.x, self.y
       is_inside_intersection = intersections.any? { |inter| inter.clicked?(check_x, check_y) }
 
       case self.direction
-      when .east?  then check_x += look_ahead
-      when .west?  then check_x -= look_ahead
-      when .north? then check_y -= look_ahead
-      when .south? then check_y += look_ahead
+      when .east?  then check_x += (width / 2.0_f32) + look_ahead
+      when .west?  then check_x -= (width / 2.0_f32) + look_ahead
+      when .north? then check_y -= (height / 2.0_f32) + look_ahead
+      when .south? then check_y += (height / 2.0_f32) + look_ahead
       else # ignore
       end
 

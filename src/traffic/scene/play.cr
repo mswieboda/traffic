@@ -30,7 +30,7 @@ module Traffic
         if layer.is_a?(GSDL::TileLayer)
           layer.data.each_with_index do |row, y|
             row.each_with_index do |gid, x|
-              if (gid & ~GSDL::TileMap::ALL_FLIP_FLAGS) == 6
+              if (gid & ~GSDL::TileMap::ALL_FLIP_FLAGS) == 5
                 @intersections << Intersection.new(x, y)
               end
             end
