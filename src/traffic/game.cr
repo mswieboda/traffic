@@ -23,6 +23,14 @@ module Traffic
 
     def init
       Game.draw.to_sdl.default_texture_scale_mode = LibSDL3::ScaleMode::Nearest
+
+      GSDL::Input.set(:camera_up) { GSDL::Keys.pressed?([GSDL::Keys::W, GSDL::Keys::Up]) }
+      GSDL::Input.set(:camera_down) { GSDL::Keys.pressed?([GSDL::Keys::S, GSDL::Keys::Down]) }
+      GSDL::Input.set(:camera_left) { GSDL::Keys.pressed?([GSDL::Keys::A, GSDL::Keys::Left]) }
+      GSDL::Input.set(:camera_right) { GSDL::Keys.pressed?([GSDL::Keys::D, GSDL::Keys::Right]) }
+      GSDL::Input.set(:zoom_in) { GSDL::Keys.pressed?(GSDL::Keys::E) }
+      GSDL::Input.set(:zoom_out) { GSDL::Keys.pressed?(GSDL::Keys::Q) }
+
       GSDL::Game.push(Scene::MainMenu.new)
     end
 
