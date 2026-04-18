@@ -1,4 +1,5 @@
 require "./scene/main_menu"
+require "./entity/*"
 
 module Traffic
   class Game < GSDL::Game
@@ -31,7 +32,8 @@ module Traffic
 
     def load_textures : Array(Tuple(String, String))
       [
-        {"tiles", "gfx/tiles.png"}
+        {"tiles", "gfx/tiles.png"},
+        {"signal", "gfx/signal.png"}
       ]
     end
 

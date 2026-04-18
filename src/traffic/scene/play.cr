@@ -1,12 +1,26 @@
 module Traffic
   class Scene::Play < GSDL::Scene
     @map : GSDL::TileMap
+    @intersections : Array(Intersection) = [] of Intersection
 
     def initialize
       super(:main_menu)
       
       # Assets are loaded automatically via Traffic::Game hooks
       @map = GSDL::TileMapManager.get("traffic")
+      
+      # Find intersections in the map (gid 6)
+      @map.layers.each do |layer|
+        if layer.is_a?(GSDL::TileLayer)
+          layer.data.each_with_index do |row, y|
+            row.each_with_index do |gid, x|
+              if (gid & ~GSDL::TileMap::ALL_FLIP_FLAGS) == 6
+                @intersections << Intersection.new(x, y)
+              end
+            end
+          end
+        end
+      end
     end
 
     def update(dt : Float32)
@@ -14,11 +28,23 @@ module Traffic
         exit_with_transition
       end
       
+      # Toggle intersections on click
+      if GSDL::Mouse.just_pressed?(GSDL::Mouse::ButtonLeft)
+        mx, my = GSDL::Mouse.position
+        @intersections.each do |intersection|
+          if intersection.clicked?(mx, my)
+            intersection.toggle
+          end
+        end
+      end
+      
       @map.update(dt)
+      @intersections.each(&.update(dt))
     end
 
     def draw(draw : GSDL::Draw)
       @map.draw(draw)
+      @intersections.each(&.draw(draw))
     end
   end
 end
