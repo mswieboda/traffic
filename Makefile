@@ -1,6 +1,6 @@
 CRYSTAL_COMPILER := crystal
 SOURCE_DIR := src
-SOURCE_FILE := template_game_sdl
+SOURCE_FILE := traffic
 BUILD_DIR := build
 BIN_DIR := bin
 LIB_DIR := lib
@@ -11,8 +11,8 @@ MKDIR_CMD := mkdir -p
 PACKER_FILE := build/assets.pack
 PACKER_BIN := bin/gsdl-packer
 APP_NAME := "Template Game SDL"
-GAME_NAME := template_game_sdl
-GAME_SRC := src/template_game_sdl.cr
+GAME_NAME := traffic
+GAME_SRC := src/traffic.cr
 
 FLAGS ?=
 

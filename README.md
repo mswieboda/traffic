@@ -1,16 +1,4 @@
-# TemplateGameSDL
-
-## Rename
-
-Currently only works on Mac or Linux.
-
-To use this template, use the rename script, and follow the prompts, to automatically replace all text, and rename all files and folders from the example of `TemplateGameSDL` and `template_game_sdl`.
-
-```
-crystal src/rename.cr
-```
-
-The rename won't work on Windows until using the command line prompt works, I could in the meantime make a custom batch script, but I probably won't do that for now.
+# Traffic
 
 ## Installation
 
