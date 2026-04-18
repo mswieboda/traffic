@@ -10,6 +10,12 @@ module Traffic
     Left
   end
 
+  enum LaneState
+    Stable
+    Yielding
+    Switching
+  end
+
   class Vehicle < GSDL::Sprite
     include GSDL::Collidable
 
@@ -21,6 +27,12 @@ module Traffic
     property frustration : Float32 = 0.0_f32
     property path = Deque(IntersectionAction).new
     property next_action : IntersectionAction = IntersectionAction::Straight
+
+    property lane_state : LaneState = LaneState::Stable
+    @target_world_coord : Float32 = 0.0_f32
+    @yield_timer : GSDL::Timer
+    @blinker_timer : GSDL::Timer
+    @blinker_on : Bool = false
 
     @original_speed : Float32
     @honk_timer : GSDL::Timer
@@ -37,6 +49,10 @@ module Traffic
       @honk_timer = GSDL::Timer.new(Time::Span.new(seconds: Random.rand(4..8)))
       @honk_timer.start
       @rage_cooldown = GSDL::Timer.new(2.seconds)
+      
+      @yield_timer = GSDL::Timer.new(5.seconds)
+      @blinker_timer = GSDL::Timer.new(0.5.seconds)
+      @blinker_timer.start
 
       @original_speed = case @vehicle_type
                         when VehicleType::Priority
@@ -85,6 +101,68 @@ module Traffic
       end
     end
 
+    def blind_spot_box(target_x : Float32, target_y : Float32, aggressive = false) : GSDL::FRect
+      # Area in the target lane to check before merging
+      look_dist = aggressive ? 0.0_f32 : 64.0_f32
+      case self.direction
+      when .east?  then GSDL::FRect.new(self.x - width, target_y - height/2, width + look_dist, height)
+      when .west?  then GSDL::FRect.new(self.x - look_dist, target_y - height/2, width + look_dist, height)
+      when .north? then GSDL::FRect.new(target_x - width/2, self.y - look_dist, width, height + look_dist)
+      when .south? then GSDL::FRect.new(target_x - width/2, self.y - height, width, height + look_dist)
+      else collision_box
+      end
+    end
+
+    def calculate_path(intersections : Array(Intersection))
+      @path.clear
+      current_dir = self.direction
+      current_x = self.x
+      current_y = self.y
+      will_turn_left = Random.rand < 0.2
+      10.times do
+        next_inter = intersections.select do |inter|
+          ix, iy = inter.tile_x * TileSize + TileSize, inter.tile_y * TileSize + TileSize
+          case current_dir
+          when .east?  then ix > current_x && (iy - current_y).abs < TileSize
+          when .west?  then ix < current_x && (iy - current_y).abs < TileSize
+          when .north? then iy < current_y && (ix - current_x).abs < TileSize
+          when .south? then iy > current_y && (ix - current_x).abs < TileSize
+          else false
+          end
+        end.min_by? do |inter|
+          ix, iy = inter.tile_x * TileSize + TileSize, inter.tile_y * TileSize + TileSize
+          (ix - current_x).abs + (iy - current_y).abs
+        end
+        break unless next_inter
+        roll = Random.rand
+        if will_turn_left && roll < 0.4
+          @path << IntersectionAction::Left; will_turn_left = false
+          current_x, current_y = next_inter.tile_x * TileSize + TileSize, next_inter.tile_y * TileSize + TileSize
+          current_dir = case current_dir
+                        when .east?  then GSDL::Direction::North
+                        when .west?  then GSDL::Direction::South
+                        when .north? then GSDL::Direction::West
+                        when .south? then GSDL::Direction::East
+                        else current_dir
+                        end
+        elsif roll < 0.2
+          @path << IntersectionAction::Right
+          current_x, current_y = next_inter.tile_x * TileSize + TileSize, next_inter.tile_y * TileSize + TileSize
+          current_dir = case current_dir
+                        when .east?  then GSDL::Direction::South
+                        when .west?  then GSDL::Direction::North
+                        when .north? then GSDL::Direction::East
+                        when .south? then GSDL::Direction::West
+                        else current_dir
+                        end
+        else
+          @path << IntersectionAction::Straight
+          current_x, current_y = next_inter.tile_x * TileSize + TileSize, next_inter.tile_y * TileSize + TileSize
+        end
+      end
+      @next_action = @path.shift? || IntersectionAction::Straight
+    end
+
     def clicked?(mx : Float32, my : Float32) : Bool
       collision_box.overlaps?(GSDL::FRect.new(mx, my, 1, 1))
     end
@@ -95,11 +173,9 @@ module Traffic
       cx, cy = self.x, self.y
       cdir = self.direction
       actions = [@next_action] + path.to_a
-
       actions.each do |action|
         next_inter = intersections.select do |inter|
-          ix = inter.tile_x * TileSize + TileSize
-          iy = inter.tile_y * TileSize + TileSize
+          ix, iy = inter.tile_x * TileSize + TileSize, inter.tile_y * TileSize + TileSize
           case cdir
           when .east?  then ix > cx && (iy - cy).abs < TileSize
           when .west?  then ix < cx && (iy - cy).abs < TileSize
@@ -108,31 +184,18 @@ module Traffic
           else false
           end
         end.min_by? do |inter|
-          ix = inter.tile_x * TileSize + TileSize
-          iy = inter.tile_y * TileSize + TileSize
+          ix, iy = inter.tile_x * TileSize + TileSize, inter.tile_y * TileSize + TileSize
           (ix - cx).abs + (iy - cy).abs
         end
-
         break unless next_inter
-
-        inter_px = next_inter.tile_x * TileSize
-        inter_py = next_inter.tile_y * TileSize
+        inter_px, inter_py = next_inter.tile_x * TileSize, next_inter.tile_y * TileSize
         turn_x, turn_y = cx, cy
-        
         if action.right? || action.left?
           case cdir
-          when .east?
-            turn_x = inter_px + (action.right? ? Lane1 : Lane3)
-            cdir = action.right? ? GSDL::Direction::South : GSDL::Direction::North
-          when .south?
-            turn_y = inter_py + (action.right? ? Lane1 : Lane3)
-            cdir = action.right? ? GSDL::Direction::West : GSDL::Direction::East
-          when .west?
-            turn_x = inter_px + (action.right? ? Lane4 : Lane2)
-            cdir = action.right? ? GSDL::Direction::North : GSDL::Direction::South
-          when .north?
-            turn_y = inter_py + (action.right? ? Lane4 : Lane2)
-            cdir = action.right? ? GSDL::Direction::East : GSDL::Direction::West
+          when .east?  then turn_x = inter_px + (action.right? ? Lane1 : Lane3); cdir = action.right? ? GSDL::Direction::South : GSDL::Direction::North
+          when .south? then turn_y = inter_py + (action.right? ? Lane1 : Lane3); cdir = action.right? ? GSDL::Direction::West : GSDL::Direction::East
+          when .west?  then turn_x = inter_px + (action.right? ? Lane4 : Lane2); cdir = action.right? ? GSDL::Direction::North : GSDL::Direction::South
+          when .north? then turn_y = inter_py + (action.right? ? Lane4 : Lane2); cdir = action.right? ? GSDL::Direction::East : GSDL::Direction::West
           end
         else
           case cdir
@@ -140,15 +203,10 @@ module Traffic
           when .north?, .south? then turn_y = inter_py + TileSize
           end
         end
-
-        seg_x = (cx < turn_x ? cx : turn_x).to_f32 - (thickness / 2.0_f32)
-        seg_y = (cy < turn_y ? cy : turn_y).to_f32 - (thickness / 2.0_f32)
-        seg_w = (cx - turn_x).abs.to_f32 + thickness
-        seg_h = (cy - turn_y).abs.to_f32 + thickness
-        segments << GSDL::FRect.new(seg_x, seg_y, seg_w, seg_h)
+        seg_x, seg_y = (cx < turn_x ? cx : turn_x) - (thickness / 2), (cy < turn_y ? cy : turn_y) - (thickness / 2)
+        segments << GSDL::FRect.new(seg_x.to_f32, seg_y.to_f32, ((cx - turn_x).abs + thickness).to_f32, ((cy - turn_y).abs + thickness).to_f32)
         cx, cy = turn_x, turn_y
       end
-      
       end_dist = 2000.0_f32
       final_x, final_y = cx, cy
       case cdir
@@ -157,16 +215,17 @@ module Traffic
       when .north? then final_y -= end_dist
       when .south? then final_y += end_dist
       end
-      
-      seg_x = (cx < final_x ? cx : final_x).to_f32 - (thickness / 2.0_f32)
-      seg_y = (cy < final_y ? cy : final_y).to_f32 - (thickness / 2.0_f32)
-      seg_w = (cx - final_x).abs.to_f32 + thickness
-      seg_h = (cy - final_y).abs.to_f32 + thickness
-      segments << GSDL::FRect.new(seg_x, seg_y, seg_w, seg_h)
+      seg_x, seg_y = (cx < final_x ? cx : final_x) - (thickness / 2), (cy < final_y ? cy : final_y) - (thickness / 2)
+      segments << GSDL::FRect.new(seg_x.to_f32, seg_y.to_f32, ((cx - final_x).abs + thickness).to_f32, ((cy - final_y).abs + thickness).to_f32)
       segments
     end
 
     def update(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
+      if @blinker_timer.done?
+        @blinker_on = !@blinker_on
+        @blinker_timer.restart
+      end
+
       if @vehicle_type == VehicleType::Priority
         decay_rate = 1.0_f32
         decay_rate = is_waiting_on_wreck?(all_vehicles) ? 10.0_f32 : 3.0_f32 if @waiting
@@ -178,40 +237,35 @@ module Traffic
       update_frustration(dt) unless @vehicle_type == VehicleType::Priority
       @waiting = false
 
-      # Check for collisions
+      # Collision check
       unless @safety_timer.try(&.running?)
         all_vehicles.each do |other|
           next if other == self
           if self.collides?(other)
-            @wrecked = true
-            other.wrecked = true
-            GSDL::AudioManager.get("crash").play
-            return
+            @wrecked = true; other.wrecked = true; GSDL::AudioManager.get("crash").play; return
           end
         end
       end
 
-      # Lane-halting logic
+      # Forward halting
       look_box = look_ahead_box
       all_vehicles.each do |other|
         next if other == self
         if look_box.overlaps?(other.collision_box)
-          @waiting = true
-          break
+          @waiting = true; break
         end
       end
 
+      update_lane_switching(dt, intersections, all_vehicles) unless @waiting
       check_intersections(intersections) unless @waiting
       handle_turns(intersections, all_vehicles) unless @waiting
 
       unless @waiting
         target_speed = @next_action.straight? ? @original_speed : @original_speed * 0.5_f32
         if @speed < target_speed
-          @speed += 400.0_f32 * dt
-          @speed = target_speed if @speed > target_speed
+          @speed += 400.0_f32 * dt; @speed = target_speed if @speed > target_speed
         elsif @speed > target_speed
-          @speed -= 400.0_f32 * dt
-          @speed = target_speed if @speed < target_speed
+          @speed -= 400.0_f32 * dt; @speed = target_speed if @speed < target_speed
         end
 
         dx, dy = 0.0_f32, 0.0_f32
@@ -223,8 +277,109 @@ module Traffic
         else # ignore
         end
 
+        # Orthogonal lane switching movement
+        if @lane_state.switching?
+          switch_speed = 150.0_f32 * dt
+          case self.direction
+          when .north?, .south?
+            if (self.x - @target_world_coord).abs < switch_speed
+              self.x = @target_world_coord; @lane_state = LaneState::Stable
+            else
+              self.x += (self.x < @target_world_coord ? switch_speed : -switch_speed)
+            end
+          when .east?, .west?
+            if (self.y - @target_world_coord).abs < switch_speed
+              self.y = @target_world_coord; @lane_state = LaneState::Stable
+            else
+              self.y += (self.y < @target_world_coord ? switch_speed : -switch_speed)
+            end
+          end
+        end
+
         self.x += dx * @speed * dt
         self.y += dy * @speed * dt
+      end
+    end
+
+    private def update_lane_switching(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
+      return if @lane_state.switching?
+      
+      # Find next intersection distance
+      next_inter = intersections.select do |inter|
+        ix, iy = inter.tile_x * TileSize + TileSize, inter.tile_y * TileSize + TileSize
+        case self.direction
+        when .east?  then ix > self.x && (iy - self.y).abs < TileSize
+        when .west?  then ix < self.x && (iy - self.y).abs < TileSize
+        when .north? then iy < self.y && (ix - self.x).abs < TileSize
+        when .south? then iy > self.y && (ix - self.x).abs < TileSize
+        else false
+        end
+      end.min_by? do |inter|
+        ix, iy = inter.tile_x * TileSize + TileSize, inter.tile_y * TileSize + TileSize
+        (ix - self.x).abs + (iy - self.y).abs
+      end
+
+      return unless next_inter
+      dist = case self.direction
+             when .east?  then (next_inter.tile_x * TileSize) - self.x
+             when .west?  then self.x - (next_inter.tile_x * TileSize + IntersectionSize)
+             when .north? then self.y - (next_inter.tile_y * TileSize + IntersectionSize)
+             when .south? then (next_inter.tile_y * TileSize) - self.y
+             else 9999.0_f32
+             end
+
+      return if dist > SwitchZoneDist || dist < 0
+
+      # Correct base_coord for the specific 2-tile roads in this map
+      if self.direction.north? || self.direction.south?
+        base_coord = 7.0_f32 * TileSize
+        current_val = self.x
+      else
+        base_coord = 6.0_f32 * TileSize
+        current_val = self.y
+      end
+      
+      current_offset = current_val - base_coord
+      
+      # Required Offset
+      req_offset = if @next_action.left?
+                     (self.direction.north? || self.direction.east?) ? Lane3 : Lane2
+                   else # Straight or Right
+                     (self.direction.north? || self.direction.east?) ? Lane4 : Lane1
+                   end
+      
+      if (current_offset - req_offset).abs > 5.0_f32
+        # Need to switch
+        target_world = base_coord + req_offset
+        aggressive = @vehicle_type == VehicleType::Priority
+        
+        if @lane_state.yielding? || aggressive
+          if !aggressive && @yield_timer.done?
+            # Timeout: cancel turn and recalculate
+            @next_action = IntersectionAction::Straight
+            calculate_path(intersections)
+            @lane_state = LaneState::Stable
+          else
+            # Check blind spot
+            tx, ty = self.x, self.y
+            if self.direction.north? || self.direction.south?
+              tx = target_world
+            else
+              ty = target_world
+            end
+            unless all_vehicles.any? { |o| o != self && o.collision_box.overlaps?(blind_spot_box(tx.to_f32, ty.to_f32, aggressive)) }
+              @target_world_coord = target_world; @lane_state = LaneState::Switching
+            else
+              @waiting = true # Stop and wait for gap
+            end
+          end
+        else
+          @lane_state = LaneState::Yielding
+          @yield_timer.restart
+          @waiting = true
+        end
+      else
+        @lane_state = LaneState::Stable
       end
     end
 
@@ -232,18 +387,14 @@ module Traffic
       if @waiting
         @frustration += dt * 2.0
         if road_rage? && !@rage_cooldown.started?
-          GSDL::AudioManager.get("rage_trigger").play
-          @rage_cooldown.start
+          GSDL::AudioManager.get("rage_trigger").play; @rage_cooldown.start
         end
         if frustrated? && @honk_timer.done?
-            GSDL::AudioManager.get("honk").play
-            @honk_timer.duration = Time::Span.new(seconds: Random.rand(4..8))
-            @honk_timer.restart
+            GSDL::AudioManager.get("honk").play; @honk_timer.duration = Time::Span.new(seconds: Random.rand(4..8)); @honk_timer.restart
         end
       else
         unless road_rage? && @rage_cooldown.running?
-          @frustration -= dt * 8.0
-          @frustration = 0.0 if @frustration < 0
+          @frustration -= dt * 8.0; @frustration = 0.0 if @frustration < 0
         end
       end
     end
@@ -318,8 +469,6 @@ module Traffic
         if inter.clicked?(check_x, check_y)
           next if is_committed
           next if road_rage? || @vehicle_type == VehicleType::Priority
-          
-          # Distance from line to decide if we should stop for yellow
           dist_to_line = case self.direction
                          when .east?  then (inter.tile_x * TileSize) - (self.x + width / 2.0_f32)
                          when .west?  then (self.x - width / 2.0_f32) - (inter.tile_x * TileSize + IntersectionSize)
@@ -327,25 +476,20 @@ module Traffic
                          when .south? then (inter.tile_y * TileSize) - (self.y + height / 2.0_f32)
                          else 0.0_f32
                          end
-
           case self.direction
           when .north?, .south?
             case inter.state
             when .green_ns?      then (@waiting = true; return) if @next_action.left?
             when .green_ns_left? then (@waiting = true; return) unless @next_action.left?
-            when .yellow_ns?     then (@waiting = true; return) if dist_to_line > 32.0_f32
-            when .yellow_ns_left? then (@waiting = true; return) if dist_to_line > 32.0_f32
-            when .all_red?, .green_ew?, .yellow_ew?, .green_ew_left?, .yellow_ew_left?
-              @waiting = true; return
+            when .yellow_ns?, .yellow_ns_left? then (@waiting = true; return) if dist_to_line > 32.0_f32
+            when .all_red?, .green_ew?, .yellow_ew?, .green_ew_left?, .yellow_ew_left? then @waiting = true; return
             end
           when .east?, .west?
             case inter.state
             when .green_ew?      then (@waiting = true; return) if @next_action.left?
             when .green_ew_left? then (@waiting = true; return) unless @next_action.left?
-            when .yellow_ew?     then (@waiting = true; return) if dist_to_line > 32.0_f32
-            when .yellow_ew_left? then (@waiting = true; return) if dist_to_line > 32.0_f32
-            when .all_red?, .green_ns?, .yellow_ns?, .green_ns_left?, .yellow_ns_left?
-              @waiting = true; return
+            when .yellow_ew?, .yellow_ew_left? then (@waiting = true; return) if dist_to_line > 32.0_f32
+            when .all_red?, .green_ns?, .yellow_ns?, .green_ns_left?, .yellow_ns_left? then @waiting = true; return
             end
           else # ignore
           end
@@ -366,6 +510,19 @@ module Traffic
       tw, th = tex.size[0].to_f32, tex.size[1].to_f32
       tint_color = @wrecked ? GSDL::Color.new(40, 40, 40) : (@vehicle_type == VehicleType::Priority ? GSDL::Color.new(0, 0, 255, 224) : GSDL::Color::White)
       draw.texture(texture: tex, dest_rect: GSDL::FRect.new(x: self.x - (tw/2.0_f32) - cam_x, y: self.y - (th/2.0_f32) - cam_y, w: tw, h: th), flip: flip, tint: tint_color, z_index: z_index)
+
+      # Blinkers
+      if @blinker_on && (@next_action.left? || @next_action.right?)
+        b_color = GSDL::Color.new(255, 165, 0)
+        bx, by = self.x - cam_x, self.y - cam_y
+        if @next_action.left?
+           p1 = {bx - 8.0_f32, by}; p2 = {bx + 4.0_f32, by - 8.0_f32}; p3 = {bx + 4.0_f32, by + 8.0_f32}
+           GSDL::Triangle.new(p1, p2, p3, color: b_color, z_index: z_index + 10).draw(draw)
+        elsif @next_action.right?
+           p1 = {bx + 8.0_f32, by}; p2 = {bx - 4.0_f32, by - 8.0_f32}; p3 = {bx - 4.0_f32, by + 8.0_f32}
+           GSDL::Triangle.new(p1, p2, p3, color: b_color, z_index: z_index + 10).draw(draw)
+        end
+      end
 
       unless @wrecked || patient?
         bar_w, bar_h = 40.0_f32, 6.0_f32

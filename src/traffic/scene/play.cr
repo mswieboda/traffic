@@ -25,7 +25,7 @@ module Traffic
       @spawn_timer = GSDL::Timer.new(Random.rand(@spawn_interval_min..@spawn_interval_max).seconds)
       @spawn_timer.start
 
-      # Find intersections in the map (gid 6)
+      # Find intersections in the map (gid 5 is top-left of intersection)
       @map.layers.each do |layer|
         if layer.is_a?(GSDL::TileLayer)
           layer.data.each_with_index do |row, y|
@@ -112,80 +112,27 @@ module Traffic
       # Adjusted based on traffic.json: Row 6,7 is road. Col 7,8 is road.
       vehicle_type = (Random.rand < 0.1) ? VehicleType::Priority : VehicleType::Civilian
       choice = Random.rand(4)
-      will_turn_left = Random.rand < 0.2
-
+      
+      # For initial spawn, we don't know if we need to switch yet.
+      # Pathfinding is done AFTER creation.
       new_vehicle = case choice
-                    when 0 # Eastbound (Bottom lanes of the horizontal road)
-                      y_offset = will_turn_left ? Lane3 : Lane4
-                      Vehicle.new(vehicle_type, GSDL::Direction::East, -IntersectionSize, 6 * TileSize + y_offset)
-                    when 1 # Westbound (Top lanes of the horizontal road)
-                      y_offset = will_turn_left ? Lane2 : Lane1
-                      Vehicle.new(vehicle_type, GSDL::Direction::West, 14 * TileSize + IntersectionSize, 6 * TileSize + y_offset)
-                    when 2 # Southbound (Left lanes of the vertical road)
-                      x_offset = will_turn_left ? Lane2 : Lane1
-                      Vehicle.new(vehicle_type, GSDL::Direction::South, 7 * TileSize + x_offset, -IntersectionSize)
-                    when 3 # Northbound (Right lanes of the vertical road)
-                      x_offset = will_turn_left ? Lane3 : Lane4
-                      Vehicle.new(vehicle_type, GSDL::Direction::North, 7 * TileSize + x_offset, 13 * TileSize + IntersectionSize)
+                    when 0 # Eastbound (Horizontal road at row 6,7)
+                      Vehicle.new(vehicle_type, GSDL::Direction::East, -IntersectionSize, 6 * TileSize + Lane4)
+                    when 1 # Westbound
+                      Vehicle.new(vehicle_type, GSDL::Direction::West, 14 * TileSize + IntersectionSize, 6 * TileSize + Lane1)
+                    when 2 # Southbound (Vertical road at col 7,8)
+                      Vehicle.new(vehicle_type, GSDL::Direction::South, 7 * TileSize + Lane1, -IntersectionSize)
+                    when 3 # Northbound
+                      Vehicle.new(vehicle_type, GSDL::Direction::North, 7 * TileSize + Lane4, 13 * TileSize + IntersectionSize)
                     end
 
       if new_vehicle
-        current_dir = new_vehicle.direction
-        current_x = new_vehicle.x
-        current_y = new_vehicle.y
+        new_vehicle.calculate_path(@intersections)
 
-        10.times do
-          next_inter = @intersections.select do |inter|
-            ix = inter.tile_x * TileSize + TileSize
-            iy = inter.tile_y * TileSize + TileSize
-            case current_dir
-            when .east?  then ix > current_x && (iy - current_y).abs < TileSize
-            when .west?  then ix < current_x && (iy - current_y).abs < TileSize
-            when .north? then iy < current_y && (ix - current_x).abs < TileSize
-            when .south? then iy > current_y && (ix - current_x).abs < TileSize
-            else false
-            end
-          end.min_by? do |inter|
-            ix = inter.tile_x * TileSize + TileSize
-            iy = inter.tile_y * TileSize + TileSize
-            (ix - current_x).abs + (iy - current_y).abs
-          end
-
-          break unless next_inter
-
-          roll = Random.rand
-          if will_turn_left && roll < 0.4
-            new_vehicle.path << IntersectionAction::Left
-            will_turn_left = false
-            current_x = next_inter.tile_x * TileSize + TileSize
-            current_y = next_inter.tile_y * TileSize + TileSize
-            current_dir = case current_dir
-                          when .east?  then GSDL::Direction::North
-                          when .west?  then GSDL::Direction::South
-                          when .north? then GSDL::Direction::West
-                          when .south? then GSDL::Direction::East
-                          else current_dir
-                          end
-          elsif roll < 0.2
-            new_vehicle.path << IntersectionAction::Right
-            current_x = next_inter.tile_x * TileSize + TileSize
-            current_y = next_inter.tile_y * TileSize + TileSize
-            current_dir = case current_dir
-                          when .east?  then GSDL::Direction::South
-                          when .west?  then GSDL::Direction::North
-                          when .north? then GSDL::Direction::East
-                          when .south? then GSDL::Direction::West
-                          else current_dir
-                          end
-          else
-            new_vehicle.path << IntersectionAction::Straight
-            current_x = next_inter.tile_x * TileSize + TileSize
-            current_y = next_inter.tile_y * TileSize + TileSize
-          end
+        # Safety check: do not spawn if overlapping another vehicle
+        if @vehicles.none? { |v| v.collides?(new_vehicle) }
+          @vehicles << new_vehicle
         end
-
-        new_vehicle.next_action = new_vehicle.path.shift? || IntersectionAction::Straight
-        @vehicles << new_vehicle if @vehicles.none? { |v| v.collides?(new_vehicle) }
       end
     end
 

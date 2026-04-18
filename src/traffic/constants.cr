@@ -16,6 +16,7 @@ module Traffic
   ThresholdTurn   = 0.125_f32 * TileSize
   LookAheadDist   = 0.15_f32 * TileSize
   SignalCheckDist = 0.25_f32 * TileSize
+  SwitchZoneDist  = 2.5_f32 * TileSize
   
   # Patience
   module PatienceThresholds
