@@ -163,7 +163,7 @@ module Traffic
         if road_rage? && @rage_cooldown.running?
           # Do nothing, wait for cooldown
         else
-          @frustration -= dt * 4.0
+          @frustration -= dt * 8.0
           @frustration = 0.0 if @frustration < 0
         end
       end
