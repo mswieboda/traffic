@@ -137,7 +137,8 @@ module Traffic
     end
 
     def draw(draw : GSDL::Draw)
-      draw.color = GSDL::Color.from_hex("#00ff00")
+      # draw green grass as the background
+      draw.color = GSDL::ColorScheme.get(:grass)
       draw.clear
 
       @map.draw(draw)

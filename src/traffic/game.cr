@@ -18,7 +18,8 @@ module Traffic
         ui_text: "#FFFFFF",     # Neon Lime
         ui_text_alt: "#99FF33", # Neon Lime
         ui_hover: "#99FF33",    # white
-        main: "#99FF33",        # Neon Lime
+        main: "#99FF33",        # neon Lime
+        grass: "#396313",       # darkish olive green
       )
     end
 
