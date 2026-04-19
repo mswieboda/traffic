@@ -8,7 +8,8 @@ module Traffic
     YellowEW
     GreenEWLeft
     YellowEWLeft
-    AllRed
+    AllRedNS
+    AllRedEW
   end
 
   class Intersection < GSDL::Entity
@@ -32,8 +33,8 @@ module Traffic
     def initialize(@tile_x, @tile_y)
       @x = @tile_x * TileSize
       @y = @tile_y * TileSize
-      @state = IntersectionSignal::GreenNS
-      @state_timer = GSDL::Timer.new(GreenDuration.seconds)
+      @state = IntersectionSignal::GreenNSLeft
+      @state_timer = GSDL::Timer.new(GreenLeftDuration.seconds)
 
       # Position children relative to parent
       offset = 12_f32
@@ -69,33 +70,36 @@ module Traffic
 
       if @state_timer.done?
         case @state
-        when .green_ns?
-          @state = IntersectionSignal::YellowNS
-          @state_timer.duration = YellowDuration.seconds
-        when .yellow_ns?
-          @state = IntersectionSignal::GreenNSLeft
-          @state_timer.duration = GreenLeftDuration.seconds
         when .green_ns_left?
           @state = IntersectionSignal::YellowNSLeft
           @state_timer.duration = YellowDuration.seconds
         when .yellow_ns_left?
-          @state = IntersectionSignal::AllRed
-          @state_timer.duration = RedDuration.seconds
-        when .all_red?
-          @state = IntersectionSignal::GreenEW
+          @state = IntersectionSignal::GreenNS
           @state_timer.duration = GreenDuration.seconds
-        when .green_ew?
-          @state = IntersectionSignal::YellowEW
+        when .green_ns?
+          @state = IntersectionSignal::YellowNS
           @state_timer.duration = YellowDuration.seconds
-        when .yellow_ew?
+        when .yellow_ns?
+          @state = IntersectionSignal::AllRedNS
+          @state_timer.duration = RedDuration.seconds
+        when .all_red_ns?
           @state = IntersectionSignal::GreenEWLeft
           @state_timer.duration = GreenLeftDuration.seconds
         when .green_ew_left?
           @state = IntersectionSignal::YellowEWLeft
           @state_timer.duration = YellowDuration.seconds
         when .yellow_ew_left?
-          @state = IntersectionSignal::GreenNS
+          @state = IntersectionSignal::GreenEW
           @state_timer.duration = GreenDuration.seconds
+        when .green_ew?
+          @state = IntersectionSignal::YellowEW
+          @state_timer.duration = YellowDuration.seconds
+        when .yellow_ew?
+          @state = IntersectionSignal::AllRedEW
+          @state_timer.duration = RedDuration.seconds
+        when .all_red_ew?
+          @state = IntersectionSignal::GreenNSLeft
+          @state_timer.duration = GreenLeftDuration.seconds
         end
 
         @state_timer.restart
@@ -146,7 +150,7 @@ module Traffic
         @signal_sb.show_red
         @signal_eb.show_red_turn_yellow
         @signal_wb.show_red_turn_yellow
-      when .all_red?
+      when .all_red_ns?, .all_red_ew?
         @signal_nb.show_red
         @signal_sb.show_red
         @signal_eb.show_red
