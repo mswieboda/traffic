@@ -137,6 +137,9 @@ module Traffic
     end
 
     def draw(draw : GSDL::Draw)
+      draw.color = GSDL::Color.from_hex("#00ff00")
+      draw.clear
+
       @map.draw(draw)
       @intersections.each(&.draw(draw))
 
