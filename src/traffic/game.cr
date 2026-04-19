@@ -8,7 +8,7 @@ module Traffic
       super(
         title: "Traffic",
         logical_width: 1280,
-        logical_height: 720,
+        logical_height: 768,
         fullscreen: true,
       )
 
