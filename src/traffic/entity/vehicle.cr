@@ -633,8 +633,10 @@ module Traffic
       end
     end
 
-    def off_screen?
-      self.x < -IntersectionSize || self.x > (14 * TileSize + IntersectionSize) || self.y < -IntersectionSize || self.y > (13 * TileSize + IntersectionSize)
+    def off_screen?(map_width : Int32 | Float32, map_height : Int32 | Float32)
+      buffer = TileSize * 2
+      self.x < -buffer || self.x > (map_width + buffer) || 
+      self.y < -buffer || self.y > (map_height + buffer)
     end
 
     def draw(draw : GSDL::Draw)

@@ -120,7 +120,7 @@ module Traffic
 
       @vehicles.each(&.update(dt, @intersections, @vehicles))
       @vehicles.reject! do |vehicle|
-        if vehicle.off_screen?
+        if vehicle.off_screen?(@map.width, @map.height)
           if vehicle.is_a?(VehiclePriority)
             GSDL::Data.increment("total_escorted", 1)
             GSDL::Data.increment("ambulances", 1)
@@ -166,11 +166,11 @@ module Traffic
       when 0 # Eastbound (Horizontal road at row 6,7)
         new_vehicle = kclass.new(GSDL::Direction::East, -IntersectionSize, 6 * TileSize + Lane4)
       when 1 # Westbound
-        new_vehicle = kclass.new(GSDL::Direction::West, 14 * TileSize + IntersectionSize, 6 * TileSize + Lane1)
+        new_vehicle = kclass.new(GSDL::Direction::West, @map.width + IntersectionSize, 6 * TileSize + Lane1)
       when 2 # Southbound (Vertical road at col 7,8)
         new_vehicle = kclass.new(GSDL::Direction::South, 7 * TileSize + Lane1, -IntersectionSize)
       when 3 # Northbound
-        new_vehicle = kclass.new(GSDL::Direction::North, 7 * TileSize + Lane4, 13 * TileSize + IntersectionSize)
+        new_vehicle = kclass.new(GSDL::Direction::North, 7 * TileSize + Lane4, @map.height + IntersectionSize)
       end
 
       new_vehicle.calculate_path(@intersections)
@@ -180,9 +180,12 @@ module Traffic
     end
 
     def draw(draw : GSDL::Draw)
-      # draw green grass as the background
-      draw.color = GSDL::ColorScheme.get(:grass)
+      # 1. Clear to black to ensure out-of-bounds/menu-bar areas are clean
+      draw.color = GSDL::Color::Black
       draw.clear
+
+      # 2. Draw grass background ONLY where the map and viewport intersect
+      draw_grass_on_map(draw)
 
       @map.draw(draw)
       @intersections.each(&.draw(draw))
@@ -203,8 +206,50 @@ module Traffic
 
       @vehicles.each(&.draw(draw))
 
+      draw_black_border_past_map(draw)
+
       # manually draw HUD
       hud.try &.draw(draw)
     end
+
+    def draw_grass_on_map(draw : GSDL::Draw)
+      view = camera.viewport_rect
+      mw, mh = @map.width.to_f32, @map.height.to_f32
+
+      # Calculate intersection
+      ix = Math.max(0_f32, view.x)
+      iy = Math.max(0_f32, view.y)
+      iw = Math.min(mw, view.x + view.w) - ix
+      ih = Math.min(mh, view.y + view.h) - iy
+
+      if iw > 0 && ih > 0
+        GSDL::Box.new(
+          width: iw,
+          height: ih,
+          x: ix,
+          y: iy,
+          color: GSDL::ColorScheme.get(:grass),
+          z_index: -20
+        ).draw(draw)
+      end
+    end
+
+    def draw_black_border_past_map(draw : GSDL::Draw)
+      # Since the global background is now black, we only need to draw enough of a
+      # black border to hide vehicles spawning/despawning just outside the map.
+      # Spawn distance is IntersectionSize (2 tiles), so 3 tiles (384px) is plenty.
+      bw = TileSize * 2.5_f32
+      mw, mh = @map.width.to_f32, @map.height.to_f32
+
+      # Top
+      GSDL::Box.new(width: mw + bw * 2, height: bw, x: -bw, y: -bw, color: GSDL::Color::Black, z_index: 50).draw(draw)
+      # Bottom
+      GSDL::Box.new(width: mw + bw * 2, height: bw, x: -bw, y: mh, color: GSDL::Color::Black, z_index: 50).draw(draw)
+      # Left
+      GSDL::Box.new(width: bw, height: mh, x: -bw, y: 0, color: GSDL::Color::Black, z_index: 50).draw(draw)
+      # Right
+      GSDL::Box.new(width: bw, height: mh, x: mw, y: 0, color: GSDL::Color::Black, z_index: 50).draw(draw)
+    end
   end
 end
+
