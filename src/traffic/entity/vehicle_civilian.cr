@@ -71,12 +71,41 @@ module Traffic
     def draw_status_overlay(draw : GSDL::Draw, th : Float32, cam_x : Float32, cam_y : Float32)
       unless @wrecked || patient?
         bar_w, bar_h = 40.0_f32, 6.0_f32
-        bar_x, bar_y = self.x - cam_x - (bar_w / 2.0_f32), self.y - cam_y - (th / 2.0_f32) - 12.0_f32
-        draw.rect_fill(GSDL::FRect.new(bar_x, bar_y, bar_w, bar_h), GSDL::Color.new(30, 30, 30, 150), z_index + 1)
+        bar_x, bar_y = self.x - (bar_w / 2.0_f32), self.y - (th / 2.0_f32) - 12.0_f32
+        
+        # Background
+        GSDL::Box.new(
+          width: bar_w,
+          height: bar_h,
+          x: bar_x,
+          y: bar_y,
+          color: GSDL::Color.new(30, 30, 30, 150),
+          z_index: z_index + 1
+        ).draw(draw)
+        
         percent = Math.min(1.0_f32, @frustration / PatienceThresholds::ROAD_RAGE)
         color = road_rage? ? GSDL::Color.new(255, 50, 50) : (frustrated? ? GSDL::Color.new(255, 120, 50) : (anxious? ? GSDL::Color.new(255, 255, 50) : GSDL::Color.new(100, 255, 100)))
-        draw.rect_fill(GSDL::FRect.new(bar_x, bar_y, bar_w * percent, bar_h), color, z_index + 2)
-        draw.rect_fill(GSDL::FRect.new(bar_x + bar_w + 4, bar_y - 4, 8, 14), GSDL::Color.new(255, 0, 0), z_index + 3) if road_rage?
+        
+        # Fill
+        GSDL::Box.new(
+          width: bar_w * percent,
+          height: bar_h,
+          x: bar_x,
+          y: bar_y,
+          color: color,
+          z_index: z_index + 2
+        ).draw(draw)
+
+        if road_rage?
+          GSDL::Box.new(
+            width: 8,
+            height: 14,
+            x: bar_x + bar_w + 4,
+            y: bar_y - 4,
+            color: GSDL::Color.new(255, 0, 0),
+            z_index: z_index + 3
+          ).draw(draw)
+        end
       end
     end
   end

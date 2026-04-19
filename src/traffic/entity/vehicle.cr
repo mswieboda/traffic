@@ -11,7 +11,7 @@ module Traffic
     Switching
   end
 
-  abstract class Vehicle < GSDL::Sprite
+  abstract class Vehicle < GSDL::Entity
     include GSDL::Collidable
 
     property speed : Float32
@@ -28,15 +28,34 @@ module Traffic
     @original_speed : Float32
     @last_intersection : Intersection?
     @safety_timer : GSDL::Timer? = nil
+    
+    @direction : GSDL::Direction = GSDL::Direction::East
+    @sprite_ew : GSDL::AnimatedSprite
+    @sprite_nb : GSDL::AnimatedSprite
+    @sprite_sb : GSDL::AnimatedSprite
+    @active_sprite : GSDL::AnimatedSprite
 
     abstract def priority? : Bool
     abstract def skips_red_lights? : Bool
     abstract def base_speed_range : Range(Float32, Float32)
     abstract def asset_prefix : String
+
+    def h_dims : Tuple(Int32, Int32)
+      {64, 32}
+    end
+
+    def v_dims : Tuple(Int32, Int32)
+      {32, 48}
+    end
+
     abstract def update_special_behavior(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
     abstract def draw_status_overlay(draw : GSDL::Draw, th : Float32, cam_x : Float32, cam_y : Float32)
 
-    def initialize(direction : GSDL::Direction, x : Int32 | Float32, y : Int32 | Float32)
+    def initialize(@direction : GSDL::Direction, x : Int32 | Float32, y : Int32 | Float32)
+      @x = x.to_f32
+      @y = y.to_f32
+      @origin = {0.5_f32, 0.5_f32}
+      
       @yield_timer = GSDL::Timer.new(5.seconds)
       @blinker_timer = GSDL::Timer.new(0.5.seconds)
       @blinker_timer.start
@@ -44,36 +63,90 @@ module Traffic
       @original_speed = Random.rand(base_speed_range)
       @speed = @original_speed
 
-      self.direction = direction
-      super(current_texture_key, x, y, origin: {0.5_f32, 0.5_f32})
-      self.rotation = 0.0
+      # 1. Create sprites
+      hw, hh = h_dims
+      vw, vh = v_dims
+      @sprite_ew = GSDL::AnimatedSprite.new("#{asset_prefix}-eb", hw, hh, origin: {0.5_f32, 0.5_f32})
+      @sprite_nb = GSDL::AnimatedSprite.new("#{asset_prefix}-nb", vw, vh, origin: {0.5_f32, 0.5_f32})
+      @sprite_sb = GSDL::AnimatedSprite.new("#{asset_prefix}-sb", vw, vh, origin: {0.5_f32, 0.5_f32})
+      
+      # 2. Set @active_sprite immediately
+      @active_sprite = case @direction
+                       when .north? then @sprite_nb
+                       when .south? then @sprite_sb
+                       else @sprite_ew
+                       end
+
+      # 3. Safe to use self/methods now
+      setup_animations(@sprite_ew)
+      setup_animations(@sprite_nb)
+      setup_animations(@sprite_sb)
+      
+      add_child(@sprite_ew)
+      add_child(@sprite_nb)
+      add_child(@sprite_sb)
+      
+      update_active_visibility
+    end
+
+    private def setup_animations(sprite)
+      sprite.add("idle", [0], fps: 1)
+      sprite.add("blink_right", [0], fps: 1)
+      sprite.add("blink_left", [0], fps: 1)
+      sprite.add("brake", [0], fps: 1)
+      sprite.add("brake_blink_right", [0], fps: 1)
+      sprite.add("brake_blink_left", [0], fps: 1)
+      sprite.play("idle")
+    end
+
+    def direction
+      @direction
+    end
+
+    def direction=(dir : GSDL::Direction)
+      return if @direction == dir
+      @direction = dir
+      @active_sprite = select_sprite_for_dir(dir)
+      update_active_visibility
+    end
+
+    private def select_sprite_for_dir(dir) : GSDL::AnimatedSprite
+      case dir
+      when .north? then @sprite_nb
+      when .south? then @sprite_sb
+      else @sprite_ew
+      end
+    end
+
+    private def update_active_visibility
+      @sprite_ew.visible = @sprite_ew.active = (@active_sprite == @sprite_ew)
+      @sprite_nb.visible = @sprite_nb.active = (@active_sprite == @sprite_nb)
+      @sprite_sb.visible = @sprite_sb.active = (@active_sprite == @sprite_sb)
+      @active_sprite.flip_h = @direction.west?
+    end
+
+    def width
+      @active_sprite.width
+    end
+
+    def height
+      @active_sprite.height
+    end
+
+    def draw_x : GSDL::Num
+      x - (width * origin_x)
+    end
+
+    def draw_y : GSDL::Num
+      y - (height * origin_y)
     end
 
     def collision_bounding_box : GSDL::FRect
-      GSDL::FRect.new(-width / 2.0_f32, -height / 2.0_f32, width, height)
-    end
-
-    def width : Float32
-      GSDL::TextureManager.get(current_texture_key).size[0].to_f32
-    end
-
-    def height : Float32
-      GSDL::TextureManager.get(current_texture_key).size[1].to_f32
+      GSDL::FRect.new(-width / 2.0_f32, -height / 2.0_f32, width.to_f32, height.to_f32)
     end
 
     def tint_color : GSDL::Color
       @wrecked ? GSDL::Color.gray(32) : GSDL::Color::White
-    end
-
-    private def current_texture_key : String
-      case self.direction
-      when .north?
-        "#{asset_prefix}-nb"
-      when .south?
-        "#{asset_prefix}-sb"
-      else
-        "#{asset_prefix}-eb"
-      end
     end
 
     def look_ahead_box : GSDL::FRect
@@ -209,6 +282,8 @@ module Traffic
     end
 
     def update(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
+      super(dt)
+      
       if @blinker_timer.done?
         @blinker_on = !@blinker_on
         @blinker_timer.restart
@@ -281,6 +356,34 @@ module Traffic
         self.x += dx * @speed * dt
         self.y += dy * @speed * dt
       end
+
+      update_animation_state
+    end
+
+    private def update_animation_state
+      is_braking = @waiting || @speed < @original_speed * 0.8
+      is_blinking_left = @next_action.left?
+      is_blinking_right = @next_action.right?
+
+      anim = if is_braking
+        if is_blinking_left
+          "brake_blink_left"
+        elsif is_blinking_right
+          "brake_blink_right"
+        else
+          "brake"
+        end
+      else
+        if is_blinking_left
+          "blink_left"
+        elsif is_blinking_right
+          "blink_right"
+        else
+          "idle"
+        end
+      end
+
+      @active_sprite.play(anim) unless @active_sprite.playing?(anim)
     end
 
     private def update_lane_switching(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
@@ -490,55 +593,10 @@ module Traffic
     end
 
     def draw(draw : GSDL::Draw)
-      old_scale_x, old_scale_y = draw.current_scale_x, draw.current_scale_y
-      draw.scale = GSDL::Game.camera.zoom
-      cam_x, cam_y = GSDL::Game.camera.x, GSDL::Game.camera.y
-      flip = self.direction.west? ? GSDL::TileMap::Flip::Horizontal : GSDL::TileMap::Flip::None
-      tex = GSDL::TextureManager.get(current_texture_key)
-      tw, th = tex.size[0].to_f32, tex.size[1].to_f32
-      tint_color = self.tint_color
-      draw.texture(texture: tex, dest_rect: GSDL::FRect.new(x: self.x - (tw/2.0_f32) - cam_x, y: self.y - (th/2.0_f32) - cam_y, w: tw, h: th), flip: flip, tint: tint_color, z_index: z_index)
-
-      # Blinkers
-      if @blinker_on && (@next_action.left? || @next_action.right?)
-        b_color = GSDL::Color.new(255, 165, 0)
-        bx, by = self.x, self.y # Use world center directly
-
-        # Determine triangle points based on world coords (Triangle class handles camera)
-        case self.direction
-        when .east?
-          if @next_action.left? # Facing Up
-            p1 = {bx, by - 16.0_f32}; p2 = {bx - 8.0_f32, by - 4.0_f32}; p3 = {bx + 8.0_f32, by - 4.0_f32}
-          else # Right (Facing Down)
-            p1 = {bx, by + 16.0_f32}; p2 = {bx - 8.0_f32, by + 4.0_f32}; p3 = {bx + 8.0_f32, by + 4.0_f32}
-          end
-        when .west?
-          if @next_action.left? # Facing Down
-            p1 = {bx, by + 16.0_f32}; p2 = {bx - 8.0_f32, by + 4.0_f32}; p3 = {bx + 8.0_f32, by + 4.0_f32}
-          else # Right (Facing Up)
-            p1 = {bx, by - 16.0_f32}; p2 = {bx - 8.0_f32, by - 4.0_f32}; p3 = {bx + 8.0_f32, by - 4.0_f32}
-          end
-        when .north?
-          if @next_action.left? # Facing Left
-            p1 = {bx - 16.0_f32, by}; p2 = {bx - 4.0_f32, by - 8.0_f32}; p3 = {bx - 4.0_f32, by + 8.0_f32}
-          else # Right (Facing Right)
-            p1 = {bx + 16.0_f32, by}; p2 = {bx + 4.0_f32, by - 8.0_f32}; p3 = {bx + 4.0_f32, by + 8.0_f32}
-          end
-        when .south?
-          if @next_action.left? # Facing Right
-            p1 = {bx + 16.0_f32, by}; p2 = {bx + 4.0_f32, by - 8.0_f32}; p3 = {bx + 4.0_f32, by + 8.0_f32}
-          else # Right (Facing Left)
-            p1 = {bx - 16.0_f32, by}; p2 = {bx - 4.0_f32, by - 8.0_f32}; p3 = {bx - 4.0_f32, by + 8.0_f32}
-          end
-        else # ignore
-          p1 = p2 = p3 = {0.0_f32, 0.0_f32}
-        end
-
-        GSDL::Triangle.new(p1, p2, p3, color: b_color, z_index: z_index + 50).draw(draw)
-      end
-
-      draw_status_overlay(draw, th, cam_x, cam_y)
-      draw.scale = {old_scale_x, old_scale_y}
+      @active_sprite.tint = tint_color
+      @active_sprite.z_index = z_index
+      super(draw)
+      draw_status_overlay(draw, height.to_f32, GSDL::Game.camera.x, GSDL::Game.camera.y)
     end
   end
 end

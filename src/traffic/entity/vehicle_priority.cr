@@ -25,6 +25,10 @@ module Traffic
       "ambulance"
     end
 
+    def v_dims : Tuple(Int32, Int32)
+      {32, 64}
+    end
+
     def update_special_behavior(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
       decay_rate = 1.0_f32
       decay_rate = is_waiting_on_wreck?(all_vehicles) ? 10.0_f32 : 3.0_f32 if @waiting
