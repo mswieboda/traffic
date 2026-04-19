@@ -73,7 +73,13 @@ module Traffic
         clicked_vehicle = @vehicles.find(&.clicked?(world_mx, world_my))
 
         if clicked_vehicle
-          @selected_vehicle = clicked_vehicle
+          if clicked_vehicle.wrecked?
+            @vehicles.delete(clicked_vehicle)
+            @selected_vehicle = nil if @selected_vehicle == clicked_vehicle
+            GSDL::AudioManager.get("ding").play
+          else
+            @selected_vehicle = clicked_vehicle
+          end
         else
           clicked_intersection = @intersections.find(&.clicked?(world_mx, world_my))
           if clicked_intersection

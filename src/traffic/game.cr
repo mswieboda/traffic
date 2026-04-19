@@ -65,6 +65,7 @@ module Traffic
 
     def load_audio : Array(Tuple(String, String))
       [
+        {"ding", "sfx/ding.wav"},
         {"honk", "sfx/honk.wav"},
         {"crash", "sfx/crash.wav"},
         {"rage_trigger", "sfx/rage_trigger.wav"},
