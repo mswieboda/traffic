@@ -143,35 +143,18 @@ module Traffic
       @map.draw(draw)
       @intersections.each(&.draw(draw))
 
-      # Detailed Magenta Debug Lines
-      old_scale_x, old_scale_y = draw.current_scale_x, draw.current_scale_y
-      draw.scale = camera.zoom
-      cam_x, cam_y = camera.x, camera.y
-      debug_color = GSDL::Color.new(255, 0, 255, 180)
-      thickness = 4.0_f32
-
-      # Horizontal lanes (Row 6, 7)
-      [{"L1", Lane1}, {"L2", Lane2}, {"L3", Lane3}, {"L4", Lane4}].each do |label, offset|
-        ly = 6 * TileSize + offset - cam_y
-        draw.rect_fill(GSDL::FRect.new(0 - cam_x, ly - thickness/2, 14 * TileSize, thickness), debug_color, 10)
-      end
-
-      # Vertical lanes (Col 7, 8)
-      [{"L1", Lane1}, {"L2", Lane2}, {"L3", Lane3}, {"L4", Lane4}].each do |label, offset|
-        lx = 7 * TileSize + offset - cam_x
-        draw.rect_fill(GSDL::FRect.new(lx - thickness/2, 0 - cam_y, thickness, 13 * TileSize), debug_color, 10)
-      end
-
-      draw.scale = {old_scale_x, old_scale_y}
-
       if selected = @selected_vehicle
-        old_sx, old_sy = draw.current_scale_x, draw.current_scale_y
-        draw.scale = camera.zoom
         segments = selected.project_path_segments(@intersections)
         segments.each do |seg|
-          draw.rect_fill(GSDL::FRect.new(seg.x - camera.x, seg.y - camera.y, seg.w, seg.h), GSDL::Color.new(0, 100, 255, 128), -5)
+          GSDL::Box.new(
+            width: seg.w,
+            height: seg.h,
+            x: seg.x,
+            y: seg.y,
+            color: GSDL::Color.new(0, 100, 255, 128),
+            z_index: -5
+          ).draw(draw)
         end
-        draw.scale = {old_sx, old_sy}
       end
 
       @vehicles.each(&.draw(draw))
