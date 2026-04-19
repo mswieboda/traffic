@@ -37,6 +37,19 @@ module Traffic
           end
         end
       end
+
+      hud = GSDL::HUD.new
+      hud << GSDL::HUDText.new(
+        # text_data_template: "Total Escorted:\n",
+        text: "Total Escorted: 1\nA: 2 P: 7 V: 5",
+        anchor: GSDL::Anchor::TopRight,
+        offset_x: 8,
+        offset_y: 8,
+        origin: {1_f32, 0_f32},
+        color: GSDL::ColorScheme.get(:hud_main),
+        align: GSDL::Font::Align::Right
+      )
+      self.hud = hud
     end
 
     def update(dt : Float32)
@@ -107,6 +120,9 @@ module Traffic
       end
 
       camera.update(dt)
+
+      # manually update HUD
+      hud.try &.update(dt)
     end
 
     private def update_spawner(dt : Float32)
@@ -167,6 +183,9 @@ module Traffic
       end
 
       @vehicles.each(&.draw(draw))
+
+      # manually draw HUD
+      hud.try &.draw(draw)
     end
   end
 end

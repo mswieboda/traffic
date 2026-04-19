@@ -17,7 +17,8 @@ module Traffic
         ui_bg: "#131313",       # Blackish
         ui_text: "#FFFFFF",     # Neon Lime
         ui_text_alt: "#99FF33", # Neon Lime
-        ui_hover: "#99FF33",    # white
+        ui_hover: "#99FF33",    # neon
+        hud_main: "#FFFFFF",    # white
         main: "#99FF33",        # neon Lime
         grass: "#396313",       # darkish olive green
         highlight_alt: GSDL::Color.new(g: 102, b: 255, a: 128), # Transparent Blue
