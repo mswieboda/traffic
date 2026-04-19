@@ -151,7 +151,7 @@ module Traffic
             height: seg.h,
             x: seg.x,
             y: seg.y,
-            color: GSDL::Color.new(0, 100, 255, 128),
+            color: GSDL::ColorScheme.get(:highlight_alt),
             z_index: -5
           ).draw(draw)
         end

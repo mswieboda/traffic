@@ -20,6 +20,7 @@ module Traffic
         ui_hover: "#99FF33",    # white
         main: "#99FF33",        # neon Lime
         grass: "#396313",       # darkish olive green
+        highlight_alt: GSDL::Color.new(g: 100, b:255, a: 128), # Transparent Blue
       )
     end
 

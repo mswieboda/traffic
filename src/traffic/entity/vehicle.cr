@@ -13,6 +13,7 @@ module Traffic
 
   abstract class Vehicle < GSDL::Entity
     include GSDL::Collidable
+    include GSDL::Area
 
     property speed : Float32
     property? waiting : Bool = false
@@ -30,6 +31,7 @@ module Traffic
     @safety_timer : GSDL::Timer? = nil
     
     @direction : GSDL::Direction = GSDL::Direction::East
+    @hovered : Bool = false
     @sprite_eb : GSDL::AnimatedSprite
     @sprite_wb : GSDL::AnimatedSprite
     @sprite_nb : GSDL::AnimatedSprite
@@ -127,19 +129,19 @@ module Traffic
     end
 
     def width
-      @active_sprite.width
+      @active_sprite.draw_width
     end
 
     def height
-      @active_sprite.height
+      @active_sprite.draw_height
     end
 
     def draw_x : GSDL::Num
-      x - (width * origin_x)
+      scene_x - (width * origin_x)
     end
 
     def draw_y : GSDL::Num
-      y - (height * origin_y)
+      scene_y - (height * origin_y)
     end
 
     def collision_bounding_box : GSDL::FRect
@@ -234,7 +236,12 @@ module Traffic
     end
 
     def clicked?(mx : Float32, my : Float32) : Bool
-      collision_box.overlaps?(GSDL::FRect.new(mx, my, 1, 1))
+      target_in?(mx, my)
+    end
+
+    def area_bounding_box : GSDL::FRect
+      # 4px padding around the sprite
+      GSDL::FRect.new(-4_f32, -4_f32, width.to_f32 + 8_f32, height.to_f32 + 8_f32)
     end
 
     def project_path_segments(intersections : Array(Intersection)) : Array(GSDL::FRect)
@@ -292,6 +299,13 @@ module Traffic
 
     def update(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
       super(dt)
+
+      # Update hover state
+      mx, my = GSDL::Mouse.position
+      cam = GSDL::Game.camera
+      world_mx = (mx / cam.zoom) + cam.x
+      world_my = (my / cam.zoom) + cam.y
+      @hovered = target_in?(world_mx, world_my)
       
       if @blinker_timer.done?
         @blinker_on = !@blinker_on
@@ -602,6 +616,18 @@ module Traffic
     end
 
     def draw(draw : GSDL::Draw)
+      if @hovered
+        # Box primitive below the vehicle to show clickable area
+        GSDL::Box.new(
+          x: area_box.x,
+          y: area_box.y,
+          width: area_box.w,
+          height: area_box.h,
+          color: GSDL::ColorScheme.get(:highlight_alt),
+          z_index: z_index - 1
+        ).draw(draw)
+      end
+
       @active_sprite.tint = tint_color
       @active_sprite.z_index = z_index
       super(draw)
