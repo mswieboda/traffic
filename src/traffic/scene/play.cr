@@ -206,22 +206,11 @@ module Traffic
 
       # draw_debug_graph(draw) # Uncomment to see nodes and connections
 
-      if selected = @selected_vehicle
-        segments = selected.project_path_segments(@intersections)
-        segments.each do |seg|
-          GSDL::Box.new(
-            width: seg.w,
-            height: seg.h,
-            x: seg.x,
-            y: seg.y,
-            color: GSDL::ColorScheme.get(:highlight_alt),
-            z_index: -5
-          ).draw(draw)
-        end
-      end
-
+      # 3. Draw vehicles
+      draw_selected_vehicle_path(draw)
       @vehicles.each(&.draw(draw))
 
+      # 4. Draw Black border around map
       draw_black_border_past_map(draw)
 
       # manually draw HUD
@@ -252,6 +241,22 @@ module Traffic
            elsif dy.abs > 1
              GSDL::Box.new(width: 2_f32, height: dy.abs.to_f32, x: node.x - 1.0_f32, y: Math.min(node.y, conn.y).to_f32, color: GSDL::Color.new(r: 255, g: 255, b: 0, a: 128), z_index: 90).draw(draw)
            end
+        end
+      end
+    end
+
+    def draw_selected_vehicle_path(draw : GSDL::Draw)
+      if selected = @selected_vehicle
+        segments = selected.project_path_segments(@intersections)
+        segments.each do |seg|
+          GSDL::Box.new(
+            width: seg.w,
+            height: seg.h,
+            x: seg.x,
+            y: seg.y,
+            color: GSDL::ColorScheme.get(:highlight_alt),
+            z_index: -5
+          ).draw(draw)
         end
       end
     end

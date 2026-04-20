@@ -29,14 +29,16 @@ module Traffic
     @signal_eb : TrafficSignal
     @signal_sb : TrafficSignal
     @signal_wb : TrafficSignal
+    @signal_hud : GSDL::AnimatedSprite
 
     def initialize(@tile_x, @tile_y)
       @x = @tile_x * TileSize
       @y = @tile_y * TileSize
       @state = IntersectionSignal::GreenNSLeft
       @state_timer = GSDL::Timer.new(GreenLeftDuration.seconds)
+      @state_timer.start
 
-      # Position children relative to parent
+      # signal gfx
       offset = 12_f32
       origin = {0.5_f32, 1_f32}
 
@@ -56,13 +58,29 @@ module Traffic
       # west-bound
       @signal_wb = TrafficSignal.new("traffic-signal-wb", offset, offset, origin)
 
+      # signal HUD
+      @signal_hud = GSDL::AnimatedSprite.new("traffic-signal-hud", 256, 256)
+
+      @signal_hud.add("GreenNSLeft", [0], fps: 0)
+      @signal_hud.add("YellowNSLeft", [1], fps: 0)
+      @signal_hud.add("GreenNS", [2], fps: 0)
+      @signal_hud.add("YellowNS", [3], fps: 0)
+      @signal_hud.add("AllRedNS", [4], fps: 0)
+      @signal_hud.add("GreenEWLeft", [5], fps: 0)
+      @signal_hud.add("YellowEWLeft", [6], fps: 0)
+      @signal_hud.add("GreenEW", [7], fps: 0)
+      @signal_hud.add("YellowEW", [8], fps: 0)
+      @signal_hud.add("AllRedEW", [9], fps: 0)
+      # z-index, intersection tile is -10 so just add a few just in case, -5 is draw_selected_vehicle_path
+      @signal_hud.z_index = -8
+
       add_child(@signal_nb)
       add_child(@signal_eb)
       add_child(@signal_sb)
       add_child(@signal_wb)
+      add_child(@signal_hud)
 
       update_signal_frames
-      @state_timer.start
     end
 
     def update(dt : Float32)
@@ -156,6 +174,8 @@ module Traffic
         @signal_eb.show_red
         @signal_wb.show_red
       end
+
+      @signal_hud.play(@state.to_s)
     end
 
     def toggle
@@ -189,10 +209,6 @@ module Traffic
     end
 
     def draw(draw : GSDL::Draw)
-      @signal_nb.z_index = z_index
-      @signal_eb.z_index = z_index
-      @signal_sb.z_index = z_index
-      @signal_wb.z_index = z_index
       super(draw)
     end
   end

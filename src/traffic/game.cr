@@ -80,6 +80,7 @@ module Traffic
         {"ambulance-nb-top", "gfx/ambulance-nb-top.png"},
         {"ambulance-sb-body", "gfx/ambulance-sb-body.png"},
         {"ambulance-sb-top", "gfx/ambulance-sb-top.png"},
+        {"traffic-signal-hud", "gfx/traffic-signal-hud.png"},
       ]
     end
 
