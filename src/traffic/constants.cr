@@ -30,4 +30,6 @@ module Traffic
     FRUSTRATED = 20.0_f32
     ROAD_RAGE  = 35.0_f32
   end
+
+  PriorityWaitTime = 2.seconds
 end

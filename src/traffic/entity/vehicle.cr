@@ -33,7 +33,7 @@ module Traffic
 
     @target_world_coord : Float32 = 0.0_f32
     @yield_timer : GSDL::Timer
-    @target_wait_timer : GSDL::Timer = GSDL::Timer.new(3.seconds)
+    @target_wait_timer : GSDL::Timer = GSDL::Timer.new(PriorityWaitTime)
     @blinker_timer : GSDL::Timer
     @blinker_on : Bool = false
     @original_speed : Float32
@@ -491,14 +491,13 @@ module Traffic
         if priority?
            # Snap to exact target coordinates
            target = @target_node.not_nil!
-           puts "Priority #{asset_prefix} ARRIVED at #{target.type}! Snapping to #{target.x}, #{target.y}"
-           self.x = target.x
-           self.y = target.y
-
-           # Start wait timer if not already running
            unless @target_wait_timer.running? || @target_wait_timer.done?
+             puts "Priority #{asset_prefix} ARRIVED at #{target.type}! Snapping to #{target.x}, #{target.y}"
              @target_wait_timer.start
            end
+
+           self.x = target.x
+           self.y = target.y
 
            @waiting = true
 
@@ -530,6 +529,11 @@ module Traffic
       all_vehicles.each do |other|
         next if other == self
         if look_box.overlaps?(other.collision_box)
+          # Specialized Parking Logic:
+          # If WE are parking, and the vehicle in front is NOT also parking at our same target, 
+          # we MUST wait to avoid a collision.
+          # However, if the vehicle in front IS at our target, we wait politely (queuing).
+          # The deadlock only happens if we ignore the vehicle in front and crash.
           @waiting = true
           break
         end
@@ -560,7 +564,7 @@ module Traffic
         if (current_offset - req_offset).abs > 5.0_f32
           return
         else
-          puts "Priority #{asset_prefix} HANDOVER: Lane reached, starting parking homing."
+          # puts "Priority #{asset_prefix} HANDOVER: Lane reached, starting parking homing."
           @homing_park = true
           @lane_state = LaneState::Stable
         end
@@ -580,7 +584,20 @@ module Traffic
       end
 
       # Use a tight blind spot check for parking
-      if all_vehicles.any? { |o| o != self && o.collision_box.overlaps?(blind_spot_box(tx.to_f32, ty.to_f32, aggressive: true)) }
+      has_parking_conflict = all_vehicles.any? do |o|
+        next if o == self
+        if o.collision_box.overlaps?(blind_spot_box(tx.to_f32, ty.to_f32, aggressive: true))
+          # Tie-breaker: Closer to destination building wins
+          if priority? && o.is_a?(VehiclePriority) && (o_target = o.target_node)
+             next o.distance_to(o_target.x, o_target.y) < dist
+          end
+          true
+        else
+          false
+        end
+      end
+
+      if has_parking_conflict
         @waiting = true # Wait for the parking spot/lane to clear
         return
       end
@@ -602,7 +619,7 @@ module Traffic
         end
       end
 
-      puts "Priority #{asset_prefix} Homing: Dist: #{dist.to_i}, Offset: #{current_offset.to_i} -> Target: #{target.x.to_i},#{target.y.to_i}"
+      # puts "Priority #{asset_prefix} Homing: Dist: #{dist.to_i}, Offset: #{current_offset.to_i} -> Target: #{target.x.to_i},#{target.y.to_i}"
     end
 
     private def update_physics(dt : Float32)
@@ -770,7 +787,24 @@ module Traffic
             else
               ty = target_world
             end
-            unless all_vehicles.any? { |o| o != self && o.collision_box.overlaps?(blind_spot_box(tx.to_f32, ty.to_f32, aggressive)) }
+            
+            my_dist = target_dist # distance to building if it exists, or inter_dist
+
+            has_conflict = all_vehicles.any? do |o| 
+              next if o == self
+              if o.collision_box.overlaps?(blind_spot_box(tx.to_f32, ty.to_f32, aggressive))
+                # Tie-breaker: If both are priority vehicles heading to buildings, 
+                # the one closer to its target node goes first.
+                if priority? && o.is_a?(VehiclePriority) && (o_target = o.target_node) && (m_target = @target_node)
+                   next o.distance_to(o_target.x, o_target.y) < my_dist
+                end
+                true
+              else
+                false
+              end
+            end
+
+            unless has_conflict
               @target_world_coord = target_world; @lane_state = LaneState::Switching
             else
               @waiting = true # Stop and wait for gap
