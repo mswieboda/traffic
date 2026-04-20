@@ -446,7 +446,32 @@ module Traffic
     def update(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
       super(dt)
 
-      # Update hover state
+      update_hover_state
+      update_special_behavior(dt, intersections, all_vehicles)
+
+      return if @wrecked
+      @waiting = false
+
+      check_arrival
+      return if @finished
+
+      check_collisions(all_vehicles)
+      return if @wrecked
+
+      check_forward_halting(all_vehicles)
+
+      unless @waiting
+        update_lane_switching(dt, intersections, all_vehicles)
+        check_intersections(intersections)
+        handle_turns(intersections, all_vehicles)
+      end
+
+      apply_parking_homing(dt, all_vehicles) unless @waiting
+      update_physics(dt) unless @waiting
+      update_animation_state
+    end
+
+    private def update_hover_state
       mx, my = GSDL::Mouse.position
       cam = GSDL::Game.camera
       world_mx = (mx / cam.zoom) + cam.x
@@ -457,13 +482,9 @@ module Traffic
         @blinker_on = !@blinker_on
         @blinker_timer.restart
       end
+    end
 
-      update_special_behavior(dt, intersections, all_vehicles)
-
-      return if @wrecked
-      @waiting = false
-
-      # 1. Check for Target Arrival
+    private def check_arrival
       if target_reached?
         if priority?
            # Snap to exact target coordinates
@@ -476,106 +497,127 @@ module Traffic
              @target_wait_timer.start
            end
 
-           @waiting = true # Force brake animation and stop moving
+           @waiting = true
 
            if @target_wait_timer.done?
              @finished = true
            end
         else
-           # Civilians finish immediately upon reaching their Exit node
            @finished = true
         end
       end
+    end
 
-      return if @finished
-
-      # Collision check
+    private def check_collisions(all_vehicles : Array(Vehicle))
       unless @safety_timer.try(&.running?)
         all_vehicles.each do |other|
           next if other == self
           if self.collides?(other)
-            @wrecked = true; other.wrecked = true; GSDL::AudioManager.get("crash").play; return
+            @wrecked = true
+            other.wrecked = true
+            GSDL::AudioManager.get("crash").play
+            return
           end
         end
       end
+    end
 
-      # Forward halting
+    private def check_forward_halting(all_vehicles : Array(Vehicle))
       look_box = look_ahead_box
       all_vehicles.each do |other|
         next if other == self
         if look_box.overlaps?(other.collision_box)
-          @waiting = true; break
+          @waiting = true
+          break
         end
       end
-
-      update_lane_switching(dt, intersections, all_vehicles) unless @waiting
-      check_intersections(intersections) unless @waiting
-      handle_turns(intersections, all_vehicles) unless @waiting
-
-      unless @waiting
-        # Final Approach Homing for Priority Vehicles
-        if priority? && (target = @target_node) && !target.type.exit?
-          dist = distance_to(target.x, target.y)
-          if dist < 1.5_f32 * TileSize
-            # Perpendicular homing to handle off-lane target nodes
-            home_speed = 100.0_f32 * dt
-            case self.direction
-            when .north?, .south?
-              diff = target.x - self.x
-              if diff.abs > 1.0_f32
-                self.x += (diff > 0 ? home_speed : -home_speed)
-              end
-            when .east?, .west?
-              diff = target.y - self.y
-              if diff.abs > 1.0_f32
-                self.y += (diff > 0 ? home_speed : -home_speed)
-              end
-            end
-            end
-            end
-
-            target_speed = @next_action.straight? ? @original_speed : @original_speed * 0.5_f32
-        if @speed < target_speed
-          @speed += 400.0_f32 * dt; @speed = target_speed if @speed > target_speed
-        elsif @speed > target_speed
-          @speed -= 400.0_f32 * dt; @speed = target_speed if @speed < target_speed
-        end
-
-        dx, dy = 0.0_f32, 0.0_f32
-        case self.direction
-        when .east?  then dx = 1.0_f32
-        when .west?  then dx = -1.0_f32
-        when .north? then dy = -1.0_f32
-        when .south? then dy = 1.0_f32
-        else # ignore
-        end
-
-        # Orthogonal lane switching movement
-        if @lane_state.switching?
-          switch_speed = 150.0_f32 * dt
-          case self.direction
-          when .north?, .south?
-            if (self.x - @target_world_coord).abs < switch_speed
-              self.x = @target_world_coord; @lane_state = LaneState::Stable
-            else
-              self.x += (self.x < @target_world_coord ? switch_speed : -switch_speed)
-            end
-          when .east?, .west?
-            if (self.y - @target_world_coord).abs < switch_speed
-              self.y = @target_world_coord; @lane_state = LaneState::Stable
-            else
-              self.y += (self.y < @target_world_coord ? switch_speed : -switch_speed)
-            end
-          end
-        end
-
-        self.x += dx * @speed * dt
-        self.y += dy * @speed * dt
-      end
-
-      update_animation_state
     end
 
+    private def apply_parking_homing(dt : Float32, all_vehicles : Array(Vehicle))
+      return unless priority? && (target = @target_node) && !target.type.exit?
+
+      dist = distance_to(target.x, target.y)
+      return unless dist < 1.5_f32 * TileSize
+
+      # Perpendicular homing to handle off-lane target nodes
+      home_speed = 100.0_f32 * dt
+
+      # Check blind spot before homing (merging into parking area)
+      tx, ty = self.x, self.y
+      case self.direction
+      when .north?, .south?
+        tx = target.x
+      when .east?, .west?
+        ty = target.y
+      end
+
+      # Use a tight blind spot check for parking
+      if all_vehicles.any? { |o| o != self && o.collision_box.overlaps?(blind_spot_box(tx.to_f32, ty.to_f32, aggressive: true)) }
+        @waiting = true # Wait for the parking spot/lane to clear
+        return
+      end
+
+      case self.direction
+      when .north?, .south?
+        diff = target.x - self.x
+        if diff.abs > 1.0_f32
+          self.x += (diff > 0 ? home_speed : -home_speed)
+        end
+      when .east?, .west?
+        diff = target.y - self.y
+        if diff.abs > 1.0_f32
+          self.y += (diff > 0 ? home_speed : -home_speed)
+        end
+      end
+    end
+
+    private def update_physics(dt : Float32)
+      # Parking Brake: Slow down significantly when close to the target
+      parking_zone = 1.5_f32 * TileSize
+      is_parking = priority? && (target = @target_node) && !target.type.exit? && distance_to(target.x, target.y) < parking_zone
+
+      base_target_speed = @next_action.straight? ? @original_speed : @original_speed * 0.5_f32
+      target_speed = is_parking ? 120.0_f32 : base_target_speed
+
+      if @speed < target_speed
+        @speed += 400.0_f32 * dt
+        @speed = target_speed if @speed > target_speed
+      elsif @speed > target_speed
+        @speed -= 400.0_f32 * dt
+        @speed = target_speed if @speed < target_speed
+      end
+
+      dx, dy = 0.0_f32, 0.0_f32
+      case self.direction
+      when .east?  then dx = 1.0_f32
+      when .west?  then dx = -1.0_f32
+      when .north? then dy = -1.0_f32
+      when .south? then dy = 1.0_f32
+      else # ignore
+      end
+
+      # Orthogonal lane switching movement (regular driving)
+      if @lane_state.switching?
+        switch_speed = 150.0_f32 * dt
+        case self.direction
+        when .north?, .south?
+          if (self.x - @target_world_coord).abs < switch_speed
+            self.x = @target_world_coord; @lane_state = LaneState::Stable
+          else
+            self.x += (self.x < @target_world_coord ? switch_speed : -switch_speed)
+          end
+        when .east?, .west?
+          if (self.y - @target_world_coord).abs < switch_speed
+            self.y = @target_world_coord; @lane_state = LaneState::Stable
+          else
+            self.y += (self.y < @target_world_coord ? switch_speed : -switch_speed)
+          end
+        end
+      end
+
+      self.x += dx * @speed * dt
+      self.y += dy * @speed * dt
+    end
     private def update_animation_state
       is_braking = @waiting || @speed < @original_speed * 0.8
       is_blinking_left = @next_action.left?
