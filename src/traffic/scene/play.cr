@@ -10,7 +10,7 @@ module Traffic
 
     @spawn_timer : GSDL::Timer
     @spawn_interval_min : Float32 = 0.5
-    @spawn_interval_max : Float32 = 1.0
+    @spawn_interval_max : Float32 = 2.0
 
     def initialize
       super(:main_menu)
@@ -193,7 +193,7 @@ module Traffic
     end
 
     private def spawn_vehicle
-      is_priority = Random.rand < 0.01
+      is_priority = Random.rand < 0.7
 
       return if @spawn_points.empty?
       dir, sx, sy = @spawn_points.sample
@@ -212,11 +212,11 @@ module Traffic
       # Safety check: do not spawn if overlapping another vehicle
       if new_vehicle.target_node && @vehicles.none?(&.collides?(new_vehicle))
         if new_vehicle.path.empty? && !new_vehicle.target_reached?
-           # puts "Vehicle spawned with no path and not at target! (Target: #{new_vehicle.target_node.try(&.type)})"
+           puts "Vehicle spawned with no path and not at target! (Target: #{new_vehicle.target_node.try(&.type)})"
         end
         @vehicles << new_vehicle
       else
-        # puts "Vehicle failed to spawn: No target or collision detected. (Target: #{new_vehicle.target_node.try(&.type)})"
+        puts "Vehicle failed to spawn: No target or collision detected. (Target: #{new_vehicle.target_node.try(&.type)})"
       end
     end
 

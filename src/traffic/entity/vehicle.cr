@@ -267,21 +267,20 @@ module Traffic
 
       unless start_node
         if priority?
-          # puts "Priority #{asset_prefix} failed to find start node! (Pos: #{x},#{y} Dir: #{direction})"
+          puts "Priority #{asset_prefix} failed to find start node! (Pos: #{x},#{y} Dir: #{direction})"
         end
         return
       end
 
       # 2. Find path to target
       @node_path = Pathfinder.find_path(start_node, target)
-      
+
       if @node_path.empty?
         if priority?
-          # puts "Priority #{asset_prefix} failed to find path to #{target.type}! (Start: #{start_node.type} at #{start_node.x},#{start_node.y})"
+          puts "Priority #{asset_prefix} failed to find path to #{target.type}! (Start: #{start_node.type} at #{start_node.x},#{start_node.y})"
         end
         return
       end
-
       # 3. Convert node sequence to IntersectionActions
       # Logic: For every Intersection node 'N' at index 'i', we need to know how to get
       # from Node[i-1] to Node[i+1] via Node[i].
@@ -333,14 +332,14 @@ module Traffic
 
       @next_action = @path.shift? || IntersectionAction::Straight
 
-      # if priority?
-      #   puts "Priority #{asset_prefix} Path Generated:"
-      #   puts "  Spawn: #{x.to_i}, #{y.to_i} (Tile: #{(x/TileSize).to_i}, #{(y/TileSize).to_i})"
-      #   puts "  Target: #{target.type} at #{target.x}, #{target.y}"
-      #   puts "  Nodes: #{@node_path.map(&.type).join(" -> ")}"
-      #   puts "  Actions: #{action_logs.join(" -> ")}"
-      #   puts "  Current Action: [#{@next_action}] | Queue: #{@path.to_a.join(", ")}"
-      # end
+      if priority?
+        puts "Priority #{asset_prefix} Path Generated:"
+        puts "  Spawn: #{x.to_i}, #{y.to_i} (Tile: #{(x/TileSize).to_i}, #{(y/TileSize).to_i})"
+        puts "  Target: #{target.type} at #{target.x}, #{target.y}"
+        puts "  Nodes: #{@node_path.map(&.type).join(" -> ")}"
+        puts "  Actions: #{action_logs.join(" -> ")}"
+        puts "  Current Action: [#{@next_action}] | Queue: #{@path.to_a.join(", ")}"
+      end
     end
 
     def draw_path(draw : GSDL::Draw, intersections : Array(Intersection))
@@ -492,7 +491,7 @@ module Traffic
            # Snap to exact target coordinates
            target = @target_node.not_nil!
            unless @target_wait_timer.running? || @target_wait_timer.done?
-             # puts "Priority #{asset_prefix} ARRIVED at #{target.type}! Snapping to #{target.x}, #{target.y}"
+             puts "Priority #{asset_prefix} ARRIVED at #{target.type}! (At: #{self.x.to_i},#{self.y.to_i}) Snapping to target: #{target.x}, #{target.y}"
              @target_wait_timer.start
            end
 
@@ -554,12 +553,12 @@ module Traffic
       # Target outer lane based on travel direction
       req_offset = (self.direction.north? || self.direction.east?) ? Lane4 : Lane1
 
-      # If more than 5px from target lane, let lane-switching handle it first
+      # If more than 10px from target lane, let lane-switching handle it first
       unless @homing_park
-        if (current_offset - req_offset).abs > 5.0_f32
+        if (current_offset - req_offset).abs > 10.0_f32
           return
         else
-          # puts "Priority #{asset_prefix} HANDOVER: Lane reached, starting parking homing."
+          puts "Priority #{asset_prefix} HANDOVER: Lane reached at #{self.x.to_i},#{self.y.to_i}. Starting parking homing to #{target.x.to_i},#{target.y.to_i}."
           @homing_park = true
           @lane_state = LaneState::Stable
         end
@@ -934,9 +933,23 @@ module Traffic
 
     def target_reached? : Bool
       return false unless target = @target_node
-      # Threshold: must be very close to the target node
-      # Using 16.0 to be robust against high speeds (up to 9px/frame at 60fps)
-      distance_to(target.x, target.y) < 16.0_f32
+      dist = distance_to(target.x, target.y)
+
+      # 1. Close enough check
+      # Using 32.0 to be robust against high speeds (up to 9px/frame at 60fps)
+      return true if dist < 32.0_f32
+
+      # 2. Overshoot check: If we are parking and our direction means we've already passed it
+      if priority? && !target.type.exit?
+        case self.direction
+        when .up?    then return true if self.y < target.y - 10.0_f32
+        when .down?  then return true if self.y > target.y + 10.0_f32
+        when .left?  then return true if self.x < target.x - 10.0_f32
+        when .right? then return true if self.x > target.x + 10.0_f32
+        end
+      end
+
+      false
     end
 
     def off_screen?(map_width : Int32 | Float32, map_height : Int32 | Float32)
@@ -981,16 +994,25 @@ module Traffic
       tx = (self.x // TileSize).to_i
       ty = (self.y // TileSize).to_i
 
+      # We limit scanning to 2 tiles. Since our roads are 2 tiles wide,
+      # this finds the start of the road without accidentally scanning 
+      # across a perpendicular intersection to the edge of the map.
+      max_scan = 2
+
       if self.direction.north? || self.direction.south?
         # Vertical road: Scan left to find the edge
-        while is_road?(map, tx - 1, ty)
+        count = 0
+        while count < max_scan && is_road?(map, tx - 1, ty)
           tx -= 1
+          count += 1
         end
         tx * TileSize
       else
         # Horizontal road: Scan up to find the edge
-        while is_road?(map, tx, ty - 1)
+        count = 0
+        while count < max_scan && is_road?(map, tx, ty - 1)
           ty -= 1
+          count += 1
         end
         ty * TileSize
       end
