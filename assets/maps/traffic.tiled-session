@@ -4,6 +4,9 @@
         "."
     ],
     "fileStates": {
+        "": {
+            "scaleInDock": 1
+        },
         "#tiles": {
             "scaleInDock": 0.2399
         },

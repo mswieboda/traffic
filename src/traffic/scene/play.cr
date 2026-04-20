@@ -179,7 +179,6 @@ module Traffic
       is_priority = Random.rand < 0.1
       choice = Random.rand(4)
 
-      kclass = is_priority ? VehiclePriority : VehicleCivilian
       # Initial spawn location
       dir, sx, sy = case choice
                     when 0 then {GSDL::Direction::East, -IntersectionSize, 6 * TileSize + Lane4}
@@ -189,7 +188,14 @@ module Traffic
                     else        {GSDL::Direction::East, -IntersectionSize, 6 * TileSize + Lane4}
                     end
 
-      new_vehicle = kclass.new(dir, sx, sy)
+      new_vehicle = if is_priority
+                      # Randomly choose priority type (excluding VIP for now)
+                      type = Random.rand < 0.6 ? PriorityType::Ambulance : PriorityType::Police
+                      VehiclePriority.new(dir, sx, sy, type)
+                    else
+                      VehicleCivilian.new(dir, sx, sy)
+                    end
+
       new_vehicle.select_target(@node_graph)
       new_vehicle.calculate_path(@node_graph)
 

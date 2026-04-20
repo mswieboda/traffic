@@ -36,6 +36,18 @@ module Traffic
       false
     end
 
+    def has_top? : Bool
+      true
+    end
+
+    def has_sirens? : Bool
+      false
+    end
+
+    def tint_body? : Bool
+      true
+    end
+
     def skips_red_lights? : Bool
       road_rage?
     end
@@ -57,7 +69,7 @@ module Traffic
       update_frustration(dt)
     end
 
-    def setup_animations(sprite : GSDL::AnimatedSprite, kind : Symbol)
+    def setup_top_animations(sprite : GSDL::AnimatedSprite, kind : Symbol)
       case kind
       when :eb
         sprite.add("idle", [0], fps: 0)

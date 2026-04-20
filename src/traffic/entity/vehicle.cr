@@ -27,6 +27,9 @@ module Traffic
     property? finished : Bool = false
 
     abstract def select_target(graph : NodeGraph)
+    abstract def has_top? : Bool
+    abstract def has_sirens? : Bool
+    abstract def tint_body? : Bool
 
     @target_world_coord : Float32 = 0.0_f32
     @yield_timer : GSDL::Timer
@@ -45,13 +48,19 @@ module Traffic
     @sprite_nb_body : GSDL::Sprite
     @sprite_sb_body : GSDL::Sprite
 
-    @sprite_eb_top : GSDL::AnimatedSprite
-    @sprite_wb_top : GSDL::AnimatedSprite
-    @sprite_nb_top : GSDL::AnimatedSprite
-    @sprite_sb_top : GSDL::AnimatedSprite
+    @sprite_eb_top : GSDL::AnimatedSprite? = nil
+    @sprite_wb_top : GSDL::AnimatedSprite? = nil
+    @sprite_nb_top : GSDL::AnimatedSprite? = nil
+    @sprite_sb_top : GSDL::AnimatedSprite? = nil
+
+    @sprite_eb_sirens : GSDL::AnimatedSprite? = nil
+    @sprite_wb_sirens : GSDL::AnimatedSprite? = nil
+    @sprite_nb_sirens : GSDL::AnimatedSprite? = nil
+    @sprite_sb_sirens : GSDL::AnimatedSprite? = nil
 
     @active_sprite_body : GSDL::Sprite
-    @active_sprite_top : GSDL::AnimatedSprite
+    @active_sprite_top : GSDL::AnimatedSprite? = nil
+    @active_sprite_sirens : GSDL::AnimatedSprite? = nil
 
     abstract def priority? : Bool
     abstract def skips_red_lights? : Bool
@@ -68,7 +77,14 @@ module Traffic
 
     abstract def update_special_behavior(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
     abstract def draw_status_overlay(draw : GSDL::Draw, th : Float32, cam_x : Float32, cam_y : Float32)
-    abstract def setup_animations(sprite : GSDL::AnimatedSprite, kind : Symbol)
+
+    def setup_top_animations(sprite : GSDL::AnimatedSprite, kind : Symbol)
+      # Override in subclasses
+    end
+
+    def setup_siren_animations(sprite : GSDL::AnimatedSprite, kind : Symbol)
+      # Override in subclasses
+    end
 
     def initialize(@direction : GSDL::Direction, x : Int32 | Float32, y : Int32 | Float32)
       @x = x.to_f32
@@ -87,42 +103,56 @@ module Traffic
       vw, vh = v_dims
 
       @sprite_eb_body = GSDL::Sprite.new("#{asset_prefix}-eb-body", origin: {0.5_f32, 0.5_f32})
-      @sprite_eb_top = GSDL::AnimatedSprite.new("#{asset_prefix}-eb-top", hw, hh, origin: {0.5_f32, 0.5_f32})
-
       @sprite_wb_body = GSDL::Sprite.new("#{asset_prefix}-eb-body", origin: {0.5_f32, 0.5_f32})
       @sprite_wb_body.flip_h = true
-      @sprite_wb_top = GSDL::AnimatedSprite.new("#{asset_prefix}-eb-top", hw, hh, origin: {0.5_f32, 0.5_f32})
-      @sprite_wb_top.flip_h = true
-
       @sprite_nb_body = GSDL::Sprite.new("#{asset_prefix}-nb-body", origin: {0.5_f32, 0.5_f32})
-      @sprite_nb_top = GSDL::AnimatedSprite.new("#{asset_prefix}-nb-top", vw, vh, origin: {0.5_f32, 0.5_f32})
-
       @sprite_sb_body = GSDL::Sprite.new("#{asset_prefix}-sb-body", origin: {0.5_f32, 0.5_f32})
-      @sprite_sb_top = GSDL::AnimatedSprite.new("#{asset_prefix}-sb-top", vw, vh, origin: {0.5_f32, 0.5_f32})
+
+      if has_top?
+        @sprite_eb_top = GSDL::AnimatedSprite.new("#{asset_prefix}-eb-top", hw, hh, origin: {0.5_f32, 0.5_f32})
+        @sprite_wb_top = GSDL::AnimatedSprite.new("#{asset_prefix}-eb-top", hw, hh, origin: {0.5_f32, 0.5_f32})
+        @sprite_wb_top.as(GSDL::AnimatedSprite).flip_h = true
+        @sprite_nb_top = GSDL::AnimatedSprite.new("#{asset_prefix}-nb-top", vw, vh, origin: {0.5_f32, 0.5_f32})
+        @sprite_sb_top = GSDL::AnimatedSprite.new("#{asset_prefix}-sb-top", vw, vh, origin: {0.5_f32, 0.5_f32})
+
+        setup_top_animations(@sprite_eb_top.as(GSDL::AnimatedSprite), :eb)
+        setup_top_animations(@sprite_wb_top.as(GSDL::AnimatedSprite), :wb)
+        setup_top_animations(@sprite_nb_top.as(GSDL::AnimatedSprite), :nb)
+        setup_top_animations(@sprite_sb_top.as(GSDL::AnimatedSprite), :sb)
+      end
+
+      if has_sirens?
+        @sprite_eb_sirens = GSDL::AnimatedSprite.new("#{asset_prefix}-eb-sirens", hw, hh, origin: {0.5_f32, 0.5_f32})
+        @sprite_wb_sirens = GSDL::AnimatedSprite.new("#{asset_prefix}-eb-sirens", hw, hh, origin: {0.5_f32, 0.5_f32})
+        @sprite_wb_sirens.as(GSDL::AnimatedSprite).flip_h = true
+        @sprite_nb_sirens = GSDL::AnimatedSprite.new("#{asset_prefix}-nb-sirens", vw, vh, origin: {0.5_f32, 0.5_f32})
+        @sprite_sb_sirens = GSDL::AnimatedSprite.new("#{asset_prefix}-sb-sirens", vw, vh, origin: {0.5_f32, 0.5_f32})
+
+        setup_siren_animations(@sprite_eb_sirens.as(GSDL::AnimatedSprite), :eb)
+        setup_siren_animations(@sprite_wb_sirens.as(GSDL::AnimatedSprite), :wb)
+        setup_siren_animations(@sprite_nb_sirens.as(GSDL::AnimatedSprite), :nb)
+        setup_siren_animations(@sprite_sb_sirens.as(GSDL::AnimatedSprite), :sb)
+      end
 
       # 2. Set active sprites immediately
-      @active_sprite_body, @active_sprite_top = case @direction
-                       when .east?  then {@sprite_eb_body, @sprite_eb_top}
-                       when .west?  then {@sprite_wb_body, @sprite_wb_top}
-                       when .north? then {@sprite_nb_body, @sprite_nb_top}
-                       when .south? then {@sprite_sb_body, @sprite_sb_top}
-                       else {@sprite_eb_body, @sprite_eb_top}
+      @active_sprite_body, @active_sprite_top, @active_sprite_sirens = case @direction
+                       when .east?  then {@sprite_eb_body, @sprite_eb_top, @sprite_eb_sirens}
+                       when .west?  then {@sprite_wb_body, @sprite_wb_top, @sprite_wb_sirens}
+                       when .north? then {@sprite_nb_body, @sprite_nb_top, @sprite_nb_sirens}
+                       when .south? then {@sprite_sb_body, @sprite_sb_top, @sprite_sb_sirens}
+                       else {@sprite_eb_body, @sprite_eb_top, @sprite_eb_sirens}
                        end
 
       # 3. Safe to use self/methods now
-      setup_animations(@sprite_eb_top, :eb)
-      setup_animations(@sprite_wb_top, :wb)
-      setup_animations(@sprite_nb_top, :nb)
-      setup_animations(@sprite_sb_top, :sb)
-
       [
-        {@sprite_eb_body, @sprite_eb_top},
-        {@sprite_wb_body, @sprite_wb_top},
-        {@sprite_nb_body, @sprite_nb_top},
-        {@sprite_sb_body, @sprite_sb_top}
-      ].each do |body, top|
+        {@sprite_eb_body, @sprite_eb_top, @sprite_eb_sirens},
+        {@sprite_wb_body, @sprite_wb_top, @sprite_wb_sirens},
+        {@sprite_nb_body, @sprite_nb_top, @sprite_nb_sirens},
+        {@sprite_sb_body, @sprite_sb_top, @sprite_sb_sirens}
+      ].each do |body, top, sirens|
         add_child(body)
-        add_child(top)
+        top.try { |t| add_child(t) }
+        sirens.try { |s| add_child(s) }
       end
 
       update_active_visibility
@@ -135,17 +165,17 @@ module Traffic
     def direction=(dir : GSDL::Direction)
       return if @direction == dir
       @direction = dir
-      @active_sprite_body, @active_sprite_top = select_sprites_for_dir(dir)
+      @active_sprite_body, @active_sprite_top, @active_sprite_sirens = select_sprites_for_dir(dir)
       update_active_visibility
     end
 
-    private def select_sprites_for_dir(dir) : Tuple(GSDL::Sprite, GSDL::AnimatedSprite)
+    private def select_sprites_for_dir(dir) : Tuple(GSDL::Sprite, GSDL::AnimatedSprite?, GSDL::AnimatedSprite?)
       case dir
-      when .east?  then {@sprite_eb_body, @sprite_eb_top}
-      when .west?  then {@sprite_wb_body, @sprite_wb_top}
-      when .north? then {@sprite_nb_body, @sprite_nb_top}
-      when .south? then {@sprite_sb_body, @sprite_sb_top}
-      else {@sprite_eb_body, @sprite_eb_top}
+      when .east?  then {@sprite_eb_body, @sprite_eb_top, @sprite_eb_sirens}
+      when .west?  then {@sprite_wb_body, @sprite_wb_top, @sprite_wb_sirens}
+      when .north? then {@sprite_nb_body, @sprite_nb_top, @sprite_nb_sirens}
+      when .south? then {@sprite_sb_body, @sprite_sb_top, @sprite_sb_sirens}
+      else {@sprite_eb_body, @sprite_eb_top, @sprite_eb_sirens}
       end
     end
 
@@ -154,18 +184,29 @@ module Traffic
         s.visible = s.active = (s == @active_sprite_body)
       end
 
-      @sprite_eb_top.visible = @sprite_eb_top.active = (@active_sprite_top == @sprite_eb_top)
-      @sprite_wb_top.visible = @sprite_wb_top.active = (@active_sprite_top == @sprite_wb_top)
-      @sprite_nb_top.visible = @sprite_nb_top.active = (@active_sprite_top == @sprite_nb_top)
-      @sprite_sb_top.visible = @sprite_sb_top.active = (@active_sprite_top == @sprite_sb_top)
+      [
+        @sprite_eb_top, @sprite_wb_top, @sprite_nb_top, @sprite_sb_top
+      ].each do |s|
+        s.try do |sprite|
+          sprite.visible = sprite.active = (sprite == @active_sprite_top)
+        end
+      end
+
+      [
+        @sprite_eb_sirens, @sprite_wb_sirens, @sprite_nb_sirens, @sprite_sb_sirens
+      ].each do |s|
+        s.try do |sprite|
+          sprite.visible = sprite.active = (sprite == @active_sprite_sirens)
+        end
+      end
     end
 
     def width
-      @active_sprite_top.draw_width
+      @active_sprite_body.draw_width
     end
 
     def height
-      @active_sprite_top.draw_height
+      @active_sprite_body.draw_height
     end
 
     def draw_x : GSDL::Num
@@ -483,7 +524,13 @@ module Traffic
         end
       end
 
-      @active_sprite_top.play(anim) unless @active_sprite_top.playing?(anim)
+      @active_sprite_top.try do |top|
+        top.play(anim) unless top.playing?(anim)
+      end
+
+      @active_sprite_sirens.try do |sirens|
+        sirens.play("active") unless sirens.playing?("active")
+      end
     end
 
     private def update_lane_switching(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
@@ -714,17 +761,19 @@ module Traffic
         ).draw(draw)
       end
 
-      @active_sprite_body.tint = @paint_color
+      @active_sprite_body.tint = tint_body? ? @paint_color : GSDL::Color::White
 
       if @wrecked
         # TODO: uses subtraction, probably should be redone for clarity
         wrecked_color = @paint_color - GSDL::ColorScheme.get(:wrecked)
         @active_sprite_body.tint = wrecked_color
-        @active_sprite_top.tint = wrecked_color
+        @active_sprite_top.try { |t| t.tint = wrecked_color }
+        @active_sprite_sirens.try { |s| s.tint = wrecked_color }
       end
 
       @active_sprite_body.z_index = z_index
-      @active_sprite_top.z_index = z_index
+      @active_sprite_top.try { |t| t.z_index = z_index }
+      @active_sprite_sirens.try { |s| s.z_index = z_index }
 
       super(draw)
 

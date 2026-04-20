@@ -14,6 +14,18 @@ module Traffic
       true
     end
 
+    def has_top? : Bool
+      false
+    end
+
+    def has_sirens? : Bool
+      true
+    end
+
+    def tint_body? : Bool
+      false
+    end
+
     def skips_red_lights? : Bool
       true
     end
@@ -42,21 +54,20 @@ module Traffic
     end
 
     def asset_prefix : String
-      "ambulance"
+      case @type
+      when .ambulance? then "ambulance"
+      when .police?    then "cop"
+      else "ambulance"
+      end
     end
 
     def v_dims : Tuple(Int32, Int32)
-      {32, 64}
+      @type.ambulance? ? {32, 64} : {32, 48}
     end
 
-    def setup_animations(sprite : GSDL::AnimatedSprite, kind : Symbol)
-      sprite.add("idle", [0, 0, 1, 2, 1, 2, 1, 2, 1, 2], fps: 6)
-      sprite.add("blink_right", [0], fps: 0)
-      sprite.add("blink_left", [0], fps: 0)
-      sprite.add("brake", [0], fps: 0)
-      sprite.add("brake_blink_right", [0], fps: 0)
-      sprite.add("brake_blink_left", [0], fps: 0)
-      sprite.play("idle")
+    def setup_siren_animations(sprite : GSDL::AnimatedSprite, kind : Symbol)
+      sprite.add("active", [0, 0, 1, 2, 1, 2, 1, 2, 1, 2], fps: 6)
+      sprite.play("active")
     end
 
     def update_special_behavior(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))

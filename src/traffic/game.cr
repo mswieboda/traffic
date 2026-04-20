@@ -81,19 +81,33 @@ module Traffic
         {"traffic-signal-wb", "gfx/traffic-signal-wb.png"},
         {"traffic-signal-hud", "gfx/traffic-signal-hud.png"},
 
-        # vehicles
+        # vehicle - civ
         {"car-eb-body", "gfx/car-eb-body.png"},
         {"car-eb-top", "gfx/car-eb-top.png"},
         {"car-nb-body", "gfx/car-nb-body.png"},
         {"car-nb-top", "gfx/car-nb-top.png"},
         {"car-sb-body", "gfx/car-sb-body.png"},
         {"car-sb-top", "gfx/car-sb-top.png"},
+
+        # vehicle - ambulance
         {"ambulance-eb-body", "gfx/ambulance-eb-body.png"},
-        {"ambulance-eb-top", "gfx/ambulance-eb-top.png"},
+        {"ambulance-eb-sirens", "gfx/ambulance-eb-top.png"},
         {"ambulance-nb-body", "gfx/ambulance-nb-body.png"},
-        {"ambulance-nb-top", "gfx/ambulance-nb-top.png"},
+        {"ambulance-nb-sirens", "gfx/ambulance-nb-top.png"},
         {"ambulance-sb-body", "gfx/ambulance-sb-body.png"},
-        {"ambulance-sb-top", "gfx/ambulance-sb-top.png"},
+        {"ambulance-sb-sirens", "gfx/ambulance-sb-top.png"},
+
+        # vehicle - police
+        # TODO: copy to gfx dir
+        {"cop-eb-body", "gfx/cop-eb-body.png"},
+        {"cop-eb-top", "gfx/cop-eb-top.png"},
+        {"cop-eb-sirens", "gfx/cop-eb-sirens.png"},
+        {"cop-nb-body", "gfx/cop-nb-body.png"},
+        {"cop-nb-top", "gfx/cop-nb-top.png"},
+        {"cop-nb-sirens", "gfx/cop-nb-sirens.png"},
+        {"cop-sb-body", "gfx/cop-sb-body.png"},
+        {"cop-sb-top", "gfx/cop-sb-top.png"},
+        {"cop-sb-sirens", "gfx/cop-sb-sirens.png"},
 
         # target destinations
         {"hospital", "gfx/hospital.png"},

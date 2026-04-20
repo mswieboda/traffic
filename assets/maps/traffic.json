@@ -25,82 +25,78 @@
          "width":14,
          "x":0,
          "y":0
-        },
+        }, 
         {
          "draworder":"topdown",
          "id":2,
          "name":"Objects",
          "objects":[
                 {
-                 "class":"TargetAmbulance",
                  "height":0,
                  "id":1,
                  "name":"Hospital",
+                 "properties":[
+                        {
+                         "name":"sprite_tile_offset_x",
+                         "type":"float",
+                         "value":0
+                        }, 
+                        {
+                         "name":"sprite_tile_offset_y",
+                         "type":"float",
+                         "value":-1
+                        }],
                  "rotation":0,
+                 "type":"TargetAmbulance",
                  "visible":true,
                  "width":0,
-                 "x":1280,
-                 "y":832,
-                 "properties": [
-                   {
-                     "name": "sprite_tile_offset_x",
-                     "type": "float",
-                     "value": 0.0
-                   },
-                   {
-                     "name": "sprite_tile_offset_y",
-                     "type": "float",
-                     "value": -1.0
-                   }
-                 ]
-                },
+                 "x":512.02515105727,
+                 "y":830.189086397601
+                }, 
                 {
-                 "class":"TargetPolice",
                  "height":0,
                  "id":2,
                  "name":"Precinct",
+                 "properties":[
+                        {
+                         "name":"sprite_tile_offset_x",
+                         "type":"float",
+                         "value":1
+                        }, 
+                        {
+                         "name":"sprite_tile_offset_y",
+                         "type":"float",
+                         "value":0
+                        }],
                  "rotation":0,
+                 "type":"TargetPolice",
                  "visible":true,
                  "width":0,
-                 "x":960,
-                 "y":256,
-                 "properties": [
-                   {
-                     "name": "sprite_tile_offset_x",
-                     "type": "float",
-                     "value": -1.0
-                   },
-                   {
-                     "name": "sprite_tile_offset_y",
-                     "type": "float",
-                     "value": 0.0
-                   }
-                 ]
-                },
+                 "x":1086.98239686086,
+                 "y":255.455011172271
+                }, 
                 {
-                 "class":"TargetVIP",
                  "height":0,
                  "id":3,
                  "name":"Penthouse",
+                 "properties":[
+                        {
+                         "name":"sprite_tile_offset_x",
+                         "type":"float",
+                         "value":-1
+                        }, 
+                        {
+                         "name":"sprite_tile_offset_y",
+                         "type":"float",
+                         "value":0
+                        }],
                  "rotation":0,
+                 "type":"TargetVIP",
                  "visible":true,
                  "width":0,
                  "x":960,
-                 "y":1152,
-                 "properties": [
-                   {
-                     "name": "sprite_tile_offset_x",
-                     "type": "float",
-                     "value": -1.0
-                   },
-                   {
-                     "name": "sprite_tile_offset_y",
-                     "type": "float",
-                     "value": 0.0
-                   }
-                 ]
-                }
-            ],
+                 "y":1152
+                }],
          "opacity":1,
          "type":"objectgroup",
          "visible":true,
@@ -129,6 +125,6 @@
         }],
  "tilewidth":128,
  "type":"map",
- "version":"1.9",
+ "version":"1.10",
  "width":14
 }
