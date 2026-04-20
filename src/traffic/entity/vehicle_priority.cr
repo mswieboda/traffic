@@ -142,7 +142,7 @@ module Traffic
 
     def draw_status_overlay(draw : GSDL::Draw, th : Float32, cam_x : Float32, cam_y : Float32)
       # Priority-specific status (e.g. destination time) can be added here if needed
-      bar_w, bar_h = 40.0_f32, 6.0_f32
+      bar_w, bar_h = 48.0_f32, 12.0_f32
       bar_x, bar_y = self.x - (bar_w / 2.0_f32), self.y - (th / 2.0_f32) - 12.0_f32
 
       # Background
