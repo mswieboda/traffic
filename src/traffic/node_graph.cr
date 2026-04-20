@@ -123,6 +123,48 @@ module Traffic
       # puts "NodeGraph: Created #{conn_count} connections."
     end
 
+    def get_spawn_points(map : GSDL::TileMap) : Array(Tuple(GSDL::Direction, Float32, Float32))
+      points = [] of Tuple(GSDL::Direction, Float32, Float32)
+
+      # West Edge (Inbound if bottom tile of a horizontal pair)
+      (0...map.map_height_tiles).each do |ty|
+        if is_road?(map, 0, ty) && is_road?(map, 0, ty - 1)
+          # This is the "Bottom" tile of a horizontal road -> Eastbound entry
+          y = (ty - 1) * TileSize + Lane4 # Lane4 is the outer lane of the pair
+          points << {GSDL::Direction::East, -IntersectionSize, y}
+        end
+      end
+
+      # East Edge (Inbound if top tile of a horizontal pair)
+      (0...map.map_height_tiles).each do |ty|
+        if is_road?(map, map.map_width_tiles - 1, ty) && is_road?(map, map.map_width_tiles - 1, ty + 1)
+          # This is the "Top" tile of a horizontal road -> Westbound entry
+          y = ty * TileSize + Lane1 # Lane1 is the outer lane of the pair
+          points << {GSDL::Direction::West, map.width + IntersectionSize, y}
+        end
+      end
+
+      # North Edge (Inbound if left tile of a vertical pair)
+      (0...map.map_width_tiles).each do |tx|
+        if is_road?(map, tx, 0) && is_road?(map, tx + 1, 0)
+          # This is the "Left" tile of a vertical road -> Southbound entry
+          x = tx * TileSize + Lane1 # Lane1 is the outer lane
+          points << {GSDL::Direction::South, x, -IntersectionSize}
+        end
+      end
+
+      # South Edge (Inbound if right tile of a vertical pair)
+      (0...map.map_width_tiles).each do |tx|
+        if is_road?(map, tx, map.map_height_tiles - 1) && is_road?(map, tx - 1, map.map_height_tiles - 1)
+          # This is the "Right" tile of a vertical road -> Northbound entry
+          x = (tx - 1) * TileSize + Lane4 # Lane4 is the outer lane
+          points << {GSDL::Direction::North, x, map.height + IntersectionSize}
+        end
+      end
+
+      points
+    end
+
     private def is_road?(map, tx, ty)
       tile = map.tile_at(tx, ty)
       return false unless tile

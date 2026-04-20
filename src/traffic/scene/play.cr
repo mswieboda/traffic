@@ -6,10 +6,11 @@ module Traffic
     @target_areas : Array(TargetArea) = [] of TargetArea
     @selected_vehicle : Vehicle? = nil
     @node_graph : NodeGraph = NodeGraph.new
+    @spawn_points : Array(Tuple(GSDL::Direction, Float32, Float32)) = [] of Tuple(GSDL::Direction, Float32, Float32)
 
     @spawn_timer : GSDL::Timer
     @spawn_interval_min : Float32 = 0.5
-    @spawn_interval_max : Float32 = 2.0
+    @spawn_interval_max : Float32 = 1.0
 
     def initialize
       super(:main_menu)
@@ -42,6 +43,7 @@ module Traffic
 
       # Build Node Graph
       @node_graph.build(@map, @intersections)
+      @spawn_points = @node_graph.get_spawn_points(@map)
 
       # Create Target Areas from Graph Nodes
       @node_graph.nodes.each do |node|
@@ -148,7 +150,7 @@ module Traffic
       # @intersections.each(&.update(dt))
       @target_areas.each(&.update(dt))
 
-      @vehicles.each(&.update(dt, @intersections, @vehicles))
+      @vehicles.each(&.update(dt, @map, @intersections, @vehicles))
       @vehicles.reject! do |vehicle|
         if vehicle.finished? || vehicle.off_screen?(@map.width, @map.height)
           if vehicle.is_a?(VehiclePriority) && (vehicle.finished? || vehicle.target_reached?)
@@ -191,17 +193,10 @@ module Traffic
     end
 
     private def spawn_vehicle
-      is_priority = Random.rand < 0.8
-      choice = Random.rand(4)
+      is_priority = Random.rand < 0.01
 
-      # Initial spawn location
-      dir, sx, sy = case choice
-                    when 0 then {GSDL::Direction::East, -IntersectionSize, 6 * TileSize + Lane4}
-                    when 1 then {GSDL::Direction::West, @map.width + IntersectionSize, 6 * TileSize + Lane1}
-                    when 2 then {GSDL::Direction::South, 7 * TileSize + Lane1, -IntersectionSize}
-                    when 3 then {GSDL::Direction::North, 7 * TileSize + Lane4, @map.height + IntersectionSize}
-                    else        {GSDL::Direction::East, -IntersectionSize, 6 * TileSize + Lane4}
-                    end
+      return if @spawn_points.empty?
+      dir, sx, sy = @spawn_points.sample
 
       new_vehicle = if is_priority
                       # Randomly choose priority type (excluding VIP for now)
@@ -237,7 +232,7 @@ module Traffic
       @intersections.each(&.draw(draw))
       @target_areas.each(&.draw(draw))
 
-      # draw_debug_graph(draw) # Uncomment to see nodes and connections
+      draw_debug_graph(draw) # Uncomment to see nodes and connections
 
       # 3. Draw vehicles
       if selected = @selected_vehicle

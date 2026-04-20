@@ -445,7 +445,7 @@ module Traffic
       IntersectionAction::Straight
     end
 
-    def update(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
+    def update(dt : Float32, map : GSDL::TileMap, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
       super(dt)
 
       update_hover_state
@@ -463,12 +463,12 @@ module Traffic
       check_forward_halting(all_vehicles)
 
       unless @waiting
-        update_lane_switching(dt, intersections, all_vehicles)
+        update_lane_switching(dt, map, intersections, all_vehicles)
         check_intersections(intersections)
         handle_turns(intersections, all_vehicles)
       end
 
-      apply_parking_homing(dt, all_vehicles) unless @waiting
+      apply_parking_homing(dt, map, all_vehicles) unless @waiting
       update_physics(dt) unless @waiting
       update_animation_state
     end
@@ -540,20 +540,15 @@ module Traffic
       end
     end
 
-    private def apply_parking_homing(dt : Float32, all_vehicles : Array(Vehicle))
+    private def apply_parking_homing(dt : Float32, map : GSDL::TileMap, all_vehicles : Array(Vehicle))
       return unless priority? && (target = @target_node) && !target.type.exit?
 
       dist = distance_to(target.x, target.y)
       return unless dist < 2.0_f32 * TileSize
 
       # 1. Ensure we are in the correct lane before homing
-      if self.direction.north? || self.direction.south?
-        base_coord = 7.0_f32 * TileSize
-        current_val = self.x
-      else
-        base_coord = 6.0_f32 * TileSize
-        current_val = self.y
-      end
+      base_coord = find_road_base_coord(map)
+      current_val = (self.direction.north? || self.direction.south?) ? self.x : self.y
 
       current_offset = current_val - base_coord
       # Target outer lane based on travel direction
@@ -701,7 +696,7 @@ module Traffic
       end
     end
 
-    private def update_lane_switching(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
+    private def update_lane_switching(dt : Float32, map : GSDL::TileMap, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
       return if @lane_state.switching? || @homing_park
 
       # Find next intersection distance
@@ -750,14 +745,9 @@ module Traffic
         return if dist > SwitchZoneDist || dist < 0
       end
 
-      # Correct base_coord for the specific 2-tile roads in this map
-      if self.direction.north? || self.direction.south?
-        base_coord = 7.0_f32 * TileSize
-        current_val = self.x
-      else
-        base_coord = 6.0_f32 * TileSize
-        current_val = self.y
-      end
+      # Dynamic base_coord for any map
+      base_coord = find_road_base_coord(map)
+      current_val = (self.direction.north? || self.direction.south?) ? self.x : self.y
 
       current_offset = current_val - base_coord
 
@@ -985,6 +975,41 @@ module Traffic
       super(draw)
 
       draw_status_overlay(draw, height.to_f32, GSDL::Game.camera.x, GSDL::Game.camera.y)
+    end
+
+    private def find_road_base_coord(map : GSDL::TileMap) : Float32
+      tx = (self.x // TileSize).to_i
+      ty = (self.y // TileSize).to_i
+
+      if self.direction.north? || self.direction.south?
+        # Vertical road: Scan left to find the edge
+        while is_road?(map, tx - 1, ty)
+          tx -= 1
+        end
+        tx * TileSize
+      else
+        # Horizontal road: Scan up to find the edge
+        while is_road?(map, tx, ty - 1)
+          ty -= 1
+        end
+        ty * TileSize
+      end
+    end
+
+    private def is_road_at?(map, x, y)
+      tx = (x // TileSize).to_i
+      ty = (y // TileSize).to_i
+      is_road?(map, tx, ty)
+    end
+
+    private def is_road?(map, tx, ty)
+      tile = map.tile_at(tx, ty)
+      return false unless tile
+
+      # GID range (current tileset)
+      gid = tile.local_tile_id + 1
+      # Based on tiles.png: 1-16 are road/intersections
+      gid >= 1 && gid <= 16
     end
   end
 end
