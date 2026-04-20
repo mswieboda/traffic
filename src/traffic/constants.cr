@@ -8,15 +8,16 @@ module Traffic
     VIP
   end
 
-  VehicleSpawnIntervalMin = 0.5
-  VehicleSpawnIntervalMax = 2.0
+  VehicleSpawnIntervalMin = 0.5_f32
+  VehicleSpawnIntervalMax = 2.0_f32
 
   CameraSpeed = 1000.0_f32
   CameraZoomOutMax = 0.25_f32
-  CameraZoomMax =
+  CameraZoomInMax = 2.0_f32
 
-  SpawnVehicleRatio = 0.1
-  SpawnPriorityVehicleAmbulanceVsPoliceRatio = 0.6
+  SpawnVehicleRatio = 0.15_f32
+  SpawnPriorityVehicleChance = 0.1_f32
+  SpawnPriorityVehicleAmbulanceVsPoliceRatio = 0.60_f32
 
   # Lane center offsets from road start (Proportional to TileSize)
   # Tile 1: 0.25 and 0.75 | Tile 2: 1.25 and 1.75

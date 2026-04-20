@@ -81,6 +81,9 @@ module Traffic
         {"traffic-signal-wb", "gfx/traffic-signal-wb.png"},
         {"traffic-signal-hud", "gfx/traffic-signal-hud.png"},
 
+        # vehicle - all
+        {"wrecked-icon", "gfx/wrecked-icon.png"},
+
         # vehicle - civ
         {"car-eb-body", "gfx/car-eb-body.png"},
         {"car-eb-top", "gfx/car-eb-top.png"},

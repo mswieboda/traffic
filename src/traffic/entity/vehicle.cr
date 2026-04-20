@@ -65,6 +65,8 @@ module Traffic
     @active_sprite_top : GSDL::AnimatedSprite? = nil
     @active_sprite_sirens : GSDL::AnimatedSprite? = nil
 
+    @wrecked_icon : GSDL::Sprite
+
     abstract def priority? : Bool
     abstract def skips_red_lights? : Bool
     abstract def base_speed_range : Range(Float32, Float32)
@@ -146,6 +148,11 @@ module Traffic
                        else {@sprite_eb_body, @sprite_eb_top, @sprite_eb_sirens}
                        end
 
+      @wrecked_icon = GSDL::Sprite.new("wrecked-icon", origin: {0.5_f32, 1.25_f32})
+      @wrecked_icon.z_index = z_index + 5
+      @wrecked_icon.active = false
+      @wrecked_icon.visible = false
+
       # 3. Safe to use self/methods now
       [
         {@sprite_eb_body, @sprite_eb_top, @sprite_eb_sirens},
@@ -157,6 +164,8 @@ module Traffic
         top.try { |t| add_child(t) }
         sirens.try { |s| add_child(s) }
       end
+
+      add_child(@wrecked_icon)
 
       update_active_visibility
     end
@@ -1051,6 +1060,8 @@ module Traffic
         @active_sprite_body.tint = wrecked_color
         @active_sprite_top.try { |t| t.tint = wrecked_color }
         @active_sprite_sirens.try { |s| s.tint = wrecked_color }
+
+        @wrecked_icon.visible = true
       end
 
       @active_sprite_body.z_index = z_index
