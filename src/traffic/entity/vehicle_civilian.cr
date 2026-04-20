@@ -10,7 +10,7 @@ module Traffic
 
     def initialize(direction : GSDL::Direction, x : Int32 | Float32, y : Int32 | Float32)
       super
-      
+
       # Assign random paint color
       colors = [
         :car_red,
@@ -42,6 +42,11 @@ module Traffic
 
     def base_speed_range : Range(Float32, Float32)
       (200.0_f32)..(350.0_f32)
+    end
+
+    def select_target(graph : NodeGraph)
+      targets = graph.nodes.select(&.type.exit?)
+      @target_node = targets.empty? ? nil : targets.sample
     end
 
     def asset_prefix : String
@@ -124,7 +129,7 @@ module Traffic
       unless @wrecked || patient?
         bar_w, bar_h = 40.0_f32, 6.0_f32
         bar_x, bar_y = self.x - (bar_w / 2.0_f32), self.y - (th / 2.0_f32) - 12.0_f32
-        
+
         # Background
         GSDL::Box.new(
           width: bar_w,
@@ -134,10 +139,10 @@ module Traffic
           color: GSDL::Color.new(30, 30, 30, 150),
           z_index: z_index + 1
         ).draw(draw)
-        
+
         percent = Math.min(1.0_f32, @frustration / PatienceThresholds::ROAD_RAGE)
         color = road_rage? ? GSDL::Color.new(255, 50, 50) : (frustrated? ? GSDL::Color.new(255, 120, 50) : (anxious? ? GSDL::Color.new(255, 255, 50) : GSDL::Color.new(100, 255, 100)))
-        
+
         # Fill
         GSDL::Box.new(
           width: bar_w * percent,

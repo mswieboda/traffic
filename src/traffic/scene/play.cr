@@ -4,6 +4,7 @@ module Traffic
     @intersections : Array(Intersection) = [] of Intersection
     @vehicles : Array(Vehicle) = [] of Vehicle
     @selected_vehicle : Vehicle? = nil
+    @node_graph : NodeGraph = NodeGraph.new
 
     @spawn_timer : GSDL::Timer
     @spawn_interval_min : Float32 = 0.5
@@ -37,6 +38,9 @@ module Traffic
           end
         end
       end
+
+      # Build Node Graph
+      @node_graph.build(@map, @intersections)
 
       GSDL::Data.increment("total_escorted", 0)
       GSDL::Data.increment("ambulances", 0)
@@ -120,10 +124,18 @@ module Traffic
 
       @vehicles.each(&.update(dt, @intersections, @vehicles))
       @vehicles.reject! do |vehicle|
-        if vehicle.off_screen?(@map.width, @map.height)
-          if vehicle.is_a?(VehiclePriority)
+        if vehicle.finished? || vehicle.off_screen?(@map.width, @map.height)
+          if vehicle.is_a?(VehiclePriority) && (vehicle.finished? || vehicle.target_reached?)
             GSDL::Data.increment("total_escorted", 1)
-            GSDL::Data.increment("ambulances", 1)
+            if node_type = vehicle.target_node.try(&.type)
+              case
+              when node_type.target_ambulance? then GSDL::Data.increment("ambulances", 1)
+              when node_type.target_police?    then GSDL::Data.increment("police", 1)
+              when node_type.target_vip?       then GSDL::Data.increment("vips", 1)
+              else # it was an exit
+                GSDL::Data.increment("ambulances", 1) # fallback
+              end
+            end
           end
           true
         else
@@ -153,30 +165,32 @@ module Traffic
     end
 
     private def spawn_vehicle
-      # Adjusted based on traffic.json: Row 6,7 is road. Col 7,8 is road.
-      is_priority = Random.rand < 0.1
+      is_priority = Random.rand < 0.75
       choice = Random.rand(4)
 
-      # For initial spawn, we don't know if we need to switch yet.
-      # Pathfinding is done AFTER creation.
       kclass = is_priority ? VehiclePriority : VehicleCivilian
-      new_vehicle = kclass.new(GSDL::Direction::East, -IntersectionSize, 6 * TileSize + Lane4)
+      # Initial spawn location
+      dir, sx, sy = case choice
+                    when 0 then {GSDL::Direction::East, -IntersectionSize, 6 * TileSize + Lane4}
+                    when 1 then {GSDL::Direction::West, @map.width + IntersectionSize, 6 * TileSize + Lane1}
+                    when 2 then {GSDL::Direction::South, 7 * TileSize + Lane1, -IntersectionSize}
+                    when 3 then {GSDL::Direction::North, 7 * TileSize + Lane4, @map.height + IntersectionSize}
+                    else        {GSDL::Direction::East, -IntersectionSize, 6 * TileSize + Lane4}
+                    end
 
-      case choice
-      when 0 # Eastbound (Horizontal road at row 6,7)
-        new_vehicle = kclass.new(GSDL::Direction::East, -IntersectionSize, 6 * TileSize + Lane4)
-      when 1 # Westbound
-        new_vehicle = kclass.new(GSDL::Direction::West, @map.width + IntersectionSize, 6 * TileSize + Lane1)
-      when 2 # Southbound (Vertical road at col 7,8)
-        new_vehicle = kclass.new(GSDL::Direction::South, 7 * TileSize + Lane1, -IntersectionSize)
-      when 3 # Northbound
-        new_vehicle = kclass.new(GSDL::Direction::North, 7 * TileSize + Lane4, @map.height + IntersectionSize)
-      end
-
-      new_vehicle.calculate_path(@intersections)
+      new_vehicle = kclass.new(dir, sx, sy)
+      new_vehicle.select_target(@node_graph)
+      new_vehicle.calculate_path(@node_graph)
 
       # Safety check: do not spawn if overlapping another vehicle
-      @vehicles << new_vehicle if @vehicles.none?(&.collides?(new_vehicle))
+      if new_vehicle.target_node && @vehicles.none?(&.collides?(new_vehicle))
+        if new_vehicle.path.empty? && !new_vehicle.target_reached?
+           puts "Vehicle spawned with no path and not at target! (Target: #{new_vehicle.target_node.try(&.type)})"
+        end
+        @vehicles << new_vehicle
+      else
+        puts "Vehicle failed to spawn: No target or collision detected. (Target: #{new_vehicle.target_node.try(&.type)})"
+      end
     end
 
     def draw(draw : GSDL::Draw)
@@ -189,6 +203,8 @@ module Traffic
 
       @map.draw(draw)
       @intersections.each(&.draw(draw))
+
+      # draw_debug_graph(draw) # Uncomment to see nodes and connections
 
       if selected = @selected_vehicle
         segments = selected.project_path_segments(@intersections)
@@ -210,6 +226,34 @@ module Traffic
 
       # manually draw HUD
       hud.try &.draw(draw)
+    end
+
+    def draw_debug_graph(draw : GSDL::Draw)
+      @node_graph.nodes.each do |node|
+        color = case node.type
+                when .intersection? then GSDL::Color::White
+                when .exit?         then GSDL::Color::Red
+                else GSDL::Color::Green
+                end
+
+        # Draw node
+        GSDL::Box.new(width: 16, height: 16, x: node.x - 8, y: node.y - 8, color: color, z_index: 100).draw(draw)
+
+        # Draw connections
+        node.connections.each do |conn|
+           # draw line between node and conn
+           # GSDL doesn't have a simple Line primitive yet? Let's use a very thin box
+           dx = conn.x - node.x
+           dy = conn.y - node.y
+           dist = Math.sqrt(dx*dx + dy*dy)
+           # simplified: only horizontal/vertical lines in our grid
+           if dx.abs > 1
+             GSDL::Box.new(width: dx.abs.to_f32, height: 2_f32, x: Math.min(node.x, conn.x).to_f32, y: node.y - 1.0_f32, color: GSDL::Color.new(r: 255, g: 255, b: 0, a: 128), z_index: 90).draw(draw)
+           elsif dy.abs > 1
+             GSDL::Box.new(width: 2_f32, height: dy.abs.to_f32, x: node.x - 1.0_f32, y: Math.min(node.y, conn.y).to_f32, color: GSDL::Color.new(r: 255, g: 255, b: 0, a: 128), z_index: 90).draw(draw)
+           end
+        end
+      end
     end
 
     def draw_grass_on_map(draw : GSDL::Draw)
@@ -252,4 +296,3 @@ module Traffic
     end
   end
 end
-

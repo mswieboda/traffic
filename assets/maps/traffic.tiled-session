@@ -1,9 +1,5 @@
 {
-    "Map/SizeTest": {
-        "height": 4300,
-        "width": 2
-    },
-    "activeFile": "traffic.tmx",
+    "activeFile": "traffic.json",
     "expandedProjectPaths": [
         "."
     ],
@@ -15,42 +11,36 @@
             "scaleInDock": 0.5223,
             "scaleInEditor": 1
         },
-        "traffic.tmx": {
-            "expandedGroupLayers": [
-                2
-            ],
-            "scale": 0.7395,
+        "traffic.json": {
+            "scale": 0.5115792410714286,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 1109.5334685598377,
-                "y": 875.5916159567275
+                "x": 1130.8121079901825,
+                "y": 1013.5282247068448
+            }
+        },
+        "traffic.json#tiles": {
+            "scaleInDock": 1
+        },
+        "traffic.tmx": {
+            "scale": 0.5115792410714286,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1113.2195254976818,
+                "y": 941.2031633487865
             }
         },
         "traffic.tmx#tiles": {
             "scaleInDock": 1
         }
     },
-    "last.exportedFilePath": "/Users/matt/code/cr/traffic/assets/maps",
-    "last.imagePath": "/Users/matt/code/cr/traffic/assets/gfx",
-    "map.height": 10,
-    "map.lastUsedExportFilter": "All Files (*)",
-    "map.lastUsedFormat": "tmx",
-    "map.tileHeight": 128,
-    "map.tileWidth": 128,
-    "map.width": 10,
     "openFiles": [
-        "traffic.tmx",
-        "tiles.tsx"
+        "traffic.json"
     ],
     "project": "traffic.tiled-project",
     "recentFiles": [
-        "tiles.tsx",
-        "traffic.tmx"
-    ],
-    "tileset.embedInMap": false,
-    "tileset.lastUsedFormat": "tsx",
-    "tileset.tileSize": {
-        "height": 128,
-        "width": 128
-    }
+        "traffic.json",
+        "traffic.tmx",
+        "tiles.tsx"
+    ]
 }

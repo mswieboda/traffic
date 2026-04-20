@@ -1,4 +1,6 @@
 require "./constants"
+require "./node_graph"
+require "./pathfinder"
 require "./scene/main_menu"
 require "./entity/*"
 
@@ -22,7 +24,7 @@ module Traffic
         main: "#99FF33",        # neon Lime
         grass: "#396313",       # darkish olive green
         highlight_alt: GSDL::Color.new(g: 102, b: 255, a: 128), # Transparent Blue
-        
+
         # Car Paint Colors
         car_red: GSDL::Color.from_hex("#f50909"),
         car_green: GSDL::Color.from_hex("#0909f5"),
@@ -35,7 +37,7 @@ module Traffic
         car_dark_red: GSDL::Color.new(r: 102),
         car_teal: GSDL::Color.new(g: 102, b: 102),
         car_dark_blue: GSDL::Color.new(b: 102),
-        
+
         # Wrecked Color
         # TODO: uses subtraction, probably should be redone for clarity
         wrecked: GSDL::Color.gray(v: 192, a: 32)

@@ -21,6 +21,18 @@ module Traffic
       (400.0_f32)..(550.0_f32)
     end
 
+    def select_target(graph : NodeGraph)
+      # Priority logic: Hospital, Police, etc.
+      targets = graph.nodes.select { |n| n.type.target_ambulance? }
+
+      # Fallback to random exit if no specific target found or 30% of the time
+      if targets.empty? || Random.rand < 0.3
+        targets = graph.nodes.select(&.type.exit?)
+      end
+
+      @target_node = targets.empty? ? nil : targets.sample
+    end
+
     def asset_prefix : String
       "ambulance"
     end

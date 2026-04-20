@@ -22,18 +22,23 @@ module Traffic
     property path = Deque(IntersectionAction).new
     property next_action : IntersectionAction = IntersectionAction::Straight
     property lane_state : LaneState = LaneState::Stable
+    property target_node : Node? = nil
+    property? finished : Bool = false
+
+    abstract def select_target(graph : NodeGraph)
 
     @target_world_coord : Float32 = 0.0_f32
     @yield_timer : GSDL::Timer
+    @target_wait_timer : GSDL::Timer = GSDL::Timer.new(3.seconds)
     @blinker_timer : GSDL::Timer
     @blinker_on : Bool = false
     @original_speed : Float32
     @last_intersection : Intersection?
     @safety_timer : GSDL::Timer? = nil
-    
+
     @direction : GSDL::Direction = GSDL::Direction::East
     @hovered : Bool = false
-    
+
     @sprite_eb_body : GSDL::Sprite
     @sprite_wb_body : GSDL::Sprite
     @sprite_nb_body : GSDL::Sprite
@@ -68,7 +73,7 @@ module Traffic
       @x = x.to_f32
       @y = y.to_f32
       @origin = {0.5_f32, 0.5_f32}
-      
+
       @yield_timer = GSDL::Timer.new(5.seconds)
       @blinker_timer = GSDL::Timer.new(0.5.seconds)
       @blinker_timer.start
@@ -82,18 +87,18 @@ module Traffic
 
       @sprite_eb_body = GSDL::Sprite.new("#{asset_prefix}-eb-body", origin: {0.5_f32, 0.5_f32})
       @sprite_eb_top = GSDL::AnimatedSprite.new("#{asset_prefix}-eb-top", hw, hh, origin: {0.5_f32, 0.5_f32})
-      
+
       @sprite_wb_body = GSDL::Sprite.new("#{asset_prefix}-eb-body", origin: {0.5_f32, 0.5_f32})
       @sprite_wb_body.flip_h = true
       @sprite_wb_top = GSDL::AnimatedSprite.new("#{asset_prefix}-eb-top", hw, hh, origin: {0.5_f32, 0.5_f32})
       @sprite_wb_top.flip_h = true
-      
+
       @sprite_nb_body = GSDL::Sprite.new("#{asset_prefix}-nb-body", origin: {0.5_f32, 0.5_f32})
       @sprite_nb_top = GSDL::AnimatedSprite.new("#{asset_prefix}-nb-top", vw, vh, origin: {0.5_f32, 0.5_f32})
-      
+
       @sprite_sb_body = GSDL::Sprite.new("#{asset_prefix}-sb-body", origin: {0.5_f32, 0.5_f32})
       @sprite_sb_top = GSDL::AnimatedSprite.new("#{asset_prefix}-sb-top", vw, vh, origin: {0.5_f32, 0.5_f32})
-      
+
       # 2. Set active sprites immediately
       @active_sprite_body, @active_sprite_top = case @direction
                        when .east?  then {@sprite_eb_body, @sprite_eb_top}
@@ -108,7 +113,7 @@ module Traffic
       setup_animations(@sprite_wb_top, :wb)
       setup_animations(@sprite_nb_top, :nb)
       setup_animations(@sprite_sb_top, :sb)
-      
+
       [
         {@sprite_eb_body, @sprite_eb_top},
         {@sprite_wb_body, @sprite_wb_top},
@@ -118,7 +123,7 @@ module Traffic
         add_child(body)
         add_child(top)
       end
-      
+
       update_active_visibility
     end
 
@@ -147,7 +152,7 @@ module Traffic
       [@sprite_eb_body, @sprite_wb_body, @sprite_nb_body, @sprite_sb_body].each do |s|
         s.visible = s.active = (s == @active_sprite_body)
       end
-      
+
       @sprite_eb_top.visible = @sprite_eb_top.active = (@active_sprite_top == @sprite_eb_top)
       @sprite_wb_top.visible = @sprite_wb_top.active = (@active_sprite_top == @sprite_wb_top)
       @sprite_nb_top.visible = @sprite_nb_top.active = (@active_sprite_top == @sprite_nb_top)
@@ -200,61 +205,72 @@ module Traffic
       end
     end
 
-    def calculate_path(intersections : Array(Intersection))
+    def calculate_path(graph : NodeGraph)
       @path.clear
+      return unless target = @target_node
 
+      # 1. Find the nearest node in front of us to start the path
+      start_node = graph.nodes.select do |node|
+        case self.direction
+        when .east?  then node.x > self.x && (node.y - self.y).abs < TileSize
+        when .west?  then node.x < self.x && (node.y - self.y).abs < TileSize
+        when .north? then node.y < self.y && (node.x - self.x).abs < TileSize
+        when .south? then node.y > self.y && (node.x - self.x).abs < TileSize
+        else false
+        end
+      end.min_by? { |node| node.distance_to(self.x.to_f32, self.y.to_f32) }
+
+      return unless start_node
+
+      # 2. Find path to target
+      node_path = Pathfinder.find_path(start_node, target)
+      return if node_path.size < 2
+
+      # 3. Convert node sequence to IntersectionActions
       current_dir = self.direction
-      current_x = self.x
-      current_y = self.y
-      will_turn_left = Random.rand < 0.2
+      (0...node_path.size - 1).each do |i|
+        curr = node_path[i]
+        nxt = node_path[i + 1]
 
-      10.times do
-        next_inter = intersections.select do |inter|
-          ix, iy = inter.tile_x * TileSize + TileSize, inter.tile_y * TileSize + TileSize
-          case current_dir
-          when .east?  then ix > current_x && (iy - current_y).abs < TileSize
-          when .west?  then ix < current_x && (iy - current_y).abs < TileSize
-          when .north? then iy < current_y && (ix - current_x).abs < TileSize
-          when .south? then iy > current_y && (ix - current_x).abs < TileSize
-          else false
-          end
-        end.min_by? do |inter|
-          ix, iy = inter.tile_x * TileSize + TileSize, inter.tile_y * TileSize + TileSize
-          (ix - current_x).abs + (iy - current_y).abs
-        end
+        # Determine direction needed to get from curr to nxt
+        needed_dir = if (nxt.x - curr.x).abs < 1.0
+                       nxt.y > curr.y ? GSDL::Direction::South : GSDL::Direction::North
+                     else
+                       nxt.x > curr.x ? GSDL::Direction::East : GSDL::Direction::West
+                     end
 
-        break unless next_inter
-
-        roll = Random.rand
-
-        if will_turn_left && roll < 0.4
-          @path << IntersectionAction::Left
-          will_turn_left = false
-          current_x, current_y = next_inter.tile_x * TileSize + TileSize, next_inter.tile_y * TileSize + TileSize
-          current_dir = case current_dir
-                        when .east?  then GSDL::Direction::North
-                        when .west?  then GSDL::Direction::South
-                        when .north? then GSDL::Direction::West
-                        when .south? then GSDL::Direction::East
-                        else current_dir
-                        end
-        elsif roll < 0.2
-          @path << IntersectionAction::Right
-          current_x, current_y = next_inter.tile_x * TileSize + TileSize, next_inter.tile_y * TileSize + TileSize
-          current_dir = case current_dir
-                        when .east?  then GSDL::Direction::South
-                        when .west?  then GSDL::Direction::North
-                        when .north? then GSDL::Direction::East
-                        when .south? then GSDL::Direction::West
-                        else current_dir
-                        end
-        else
-          @path << IntersectionAction::Straight
-          current_x, current_y = next_inter.tile_x * TileSize + TileSize, next_inter.tile_y * TileSize + TileSize
-        end
+        action = determine_action(current_dir, needed_dir)
+        @path << action
+        current_dir = needed_dir
       end
 
       @next_action = @path.shift? || IntersectionAction::Straight
+    end
+
+    private def determine_action(current : GSDL::Direction, target : GSDL::Direction) : IntersectionAction
+      return IntersectionAction::Straight if current == target
+
+      case current
+      when .east?
+        return IntersectionAction::Right if target.south?
+        return IntersectionAction::Left if target.north?
+      when .west?
+        return IntersectionAction::Right if target.north?
+        return IntersectionAction::Left if target.south?
+      when .north?
+        return IntersectionAction::Right if target.east?
+        return IntersectionAction::Left if target.west?
+      when .south?
+        return IntersectionAction::Right if target.west?
+        return IntersectionAction::Left if target.east?
+      end
+
+      # If we reach here, it's a U-turn or invalid
+      IntersectionAction::Straight
+    end
+
+    def distance_to(other_x : Float32, other_y : Float32)
+      Math.sqrt((self.x - other_x)**2 + (self.y - other_y)**2)
     end
 
     def clicked?(mx : Float32, my : Float32) : Bool
@@ -328,7 +344,7 @@ module Traffic
       world_mx = (mx / cam.zoom) + cam.x
       world_my = (my / cam.zoom) + cam.y
       @hovered = target_in?(world_mx, world_my)
-      
+
       if @blinker_timer.done?
         @blinker_on = !@blinker_on
         @blinker_timer.restart
@@ -338,6 +354,27 @@ module Traffic
 
       return if @wrecked
       @waiting = false
+
+      # 1. Check for Target Arrival
+      if target_reached?
+        if priority?
+           # Start wait timer if not already running
+           unless @target_wait_timer.running? || @target_wait_timer.done?
+             @target_wait_timer.start
+           end
+
+           @waiting = true # Force brake animation and stop moving
+
+           if @target_wait_timer.done?
+             @finished = true
+           end
+        else
+           # Civilians finish immediately upon reaching their Exit node
+           @finished = true
+        end
+      end
+
+      return if @finished
 
       # Collision check
       unless @safety_timer.try(&.running?)
@@ -487,7 +524,7 @@ module Traffic
           if !aggressive && @yield_timer.done?
             # Timeout: cancel turn and recalculate
             @next_action = IntersectionAction::Straight
-            calculate_path(intersections)
+            # @next_action = IntersectionAction::Straight
             @lane_state = LaneState::Stable
           else
             # Check blind spot
@@ -633,9 +670,14 @@ module Traffic
       end
     end
 
+    def target_reached? : Bool
+      return false unless target = @target_node
+      distance_to(target.x, target.y) < TileSize
+    end
+
     def off_screen?(map_width : Int32 | Float32, map_height : Int32 | Float32)
       buffer = TileSize * 2
-      self.x < -buffer || self.x > (map_width + buffer) || 
+      self.x < -buffer || self.x > (map_width + buffer) ||
       self.y < -buffer || self.y > (map_height + buffer)
     end
 
