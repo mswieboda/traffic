@@ -44,14 +44,14 @@
                         {
                          "name":"sprite_tile_offset_y",
                          "type":"float",
-                         "value":-1
+                         "value":-0.75
                         }],
                  "rotation":0,
                  "type":"TargetAmbulance",
                  "visible":true,
                  "width":0,
-                 "x":512.02515105727,
-                 "y":830.189086397601
+                 "x":512,
+                 "y":800
                 }, 
                 {
                  "height":0,
@@ -61,7 +61,7 @@
                         {
                          "name":"sprite_tile_offset_x",
                          "type":"float",
-                         "value":1
+                         "value":0.75
                         }, 
                         {
                          "name":"sprite_tile_offset_y",
@@ -72,8 +72,8 @@
                  "type":"TargetPolice",
                  "visible":true,
                  "width":0,
-                 "x":1086.98239686086,
-                 "y":255.455011172271
+                 "x":1120,
+                 "y":256
                 }, 
                 {
                  "height":0,
@@ -83,7 +83,7 @@
                         {
                          "name":"sprite_tile_offset_x",
                          "type":"float",
-                         "value":-1
+                         "value":-0.75
                         }, 
                         {
                          "name":"sprite_tile_offset_y",
@@ -94,7 +94,7 @@
                  "type":"TargetVIP",
                  "visible":true,
                  "width":0,
-                 "x":960,
+                 "x":928,
                  "y":1152
                 }],
          "opacity":1,

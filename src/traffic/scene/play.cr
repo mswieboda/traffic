@@ -176,7 +176,7 @@ module Traffic
     end
 
     private def spawn_vehicle
-      is_priority = Random.rand < 0.1
+      is_priority = Random.rand < 0.8
       choice = Random.rand(4)
 
       # Initial spawn location

@@ -417,6 +417,11 @@ module Traffic
       # 1. Check for Target Arrival
       if target_reached?
         if priority?
+           # Snap to exact target coordinates
+           target = @target_node.not_nil!
+           self.x = target.x
+           self.y = target.y
+
            # Start wait timer if not already running
            unless @target_wait_timer.running? || @target_wait_timer.done?
              @target_wait_timer.start
@@ -459,6 +464,27 @@ module Traffic
       handle_turns(intersections, all_vehicles) unless @waiting
 
       unless @waiting
+        # Final Approach Homing for Priority Vehicles
+        if priority? && @node_path.empty? && (target = @target_node)
+          dist = distance_to(target.x, target.y)
+          if dist < 128.0_f32
+            # Perpendicular homing to handle off-lane target nodes
+            home_speed = 100.0_f32 * dt
+            case self.direction
+            when .north?, .south?
+              diff = target.x - self.x
+              if diff.abs > 1.0_f32
+                self.x += (diff > 0 ? home_speed : -home_speed)
+              end
+            when .east?, .west?
+              diff = target.y - self.y
+              if diff.abs > 1.0_f32
+                self.y += (diff > 0 ? home_speed : -home_speed)
+              end
+            end
+          end
+        end
+
         target_speed = @next_action.straight? ? @original_speed : @original_speed * 0.5_f32
         if @speed < target_speed
           @speed += 400.0_f32 * dt; @speed = target_speed if @speed > target_speed
@@ -739,7 +765,8 @@ module Traffic
 
     def target_reached? : Bool
       return false unless target = @target_node
-      distance_to(target.x, target.y) < TileSize
+      # Threshold: must be very close to the target node
+      distance_to(target.x, target.y) < 4.0_f32
     end
 
     def off_screen?(map_width : Int32 | Float32, map_height : Int32 | Float32)
