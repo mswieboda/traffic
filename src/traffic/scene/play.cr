@@ -9,8 +9,8 @@ module Traffic
     @spawn_points : Array(Tuple(GSDL::Direction, Float32, Float32)) = [] of Tuple(GSDL::Direction, Float32, Float32)
 
     @spawn_timer : GSDL::Timer
-    @spawn_interval_min : Float32 = 0.25
-    @spawn_interval_max : Float32 = 1.0
+    @spawn_interval_min : Float32 = VehicleSpawnIntervalMin
+    @spawn_interval_max : Float32 = VehicleSpawnIntervalMax
 
     @ambulance_ui_strikes : GSDL::AnimatedSprite
     @cop_ui_strikes : GSDL::AnimatedSprite
@@ -26,7 +26,7 @@ module Traffic
       camera.type = GSDL::Camera::Type::Manual
       camera.zoom = 0.5_f32
       camera.set_boundary(@map)
-      camera.speed = 1000.0_f32
+      camera.speed = CameraSpeed
 
       @spawn_timer = GSDL::Timer.new(Random.rand(@spawn_interval_min..@spawn_interval_max).seconds)
       @spawn_timer.start
@@ -150,14 +150,14 @@ module Traffic
       # Zoom in keyboard
       if GSDL::Input.action?(:zoom_in)
         zoom = camera.zoom + 1.0_f32 * dt
-        zoom = 2_f32 if zoom > 2_f32
+        zoom = CameraZoomInMax if zoom > 2_f32
         camera.zoom = zoom
       end
 
       # Zoom out keyboard
       if GSDL::Input.action?(:zoom_out)
         zoom = camera.zoom - 1.0_f32 * dt
-        zoom = 0.25_f32 if zoom < 0.25_f32
+        zoom = CameraZoomOutMax if zoom < CameraZoomOutMax
         camera.zoom = zoom
       end
 
@@ -165,8 +165,8 @@ module Traffic
       wheel_y = GSDL::Mouse.wheel_y
       if wheel_y != 0
         zoom = camera.zoom + wheel_y * 0.1_f32
-        zoom = 2_f32 if zoom > 2_f32
-        zoom = 0.25_f32 if zoom < 0.25_f32
+        zoom = CameraZoomInMax if zoom > CameraZoomInMax
+        zoom = CameraZoomOutMax if zoom < CameraZoomOutMax
         camera.zoom = zoom
       end
 
@@ -278,14 +278,14 @@ module Traffic
     end
 
     private def spawn_vehicle
-      is_priority = Random.rand < 0.6
+      is_priority = Random.rand < SpawnPriorityVehicleChance
 
       return if @spawn_points.empty?
       dir, sx, sy = @spawn_points.sample
 
       new_vehicle = if is_priority
                       # Randomly choose priority type (excluding VIP for now)
-                      type = Random.rand < 0.6 ? PriorityType::Ambulance : PriorityType::Police
+                      type = Random.rand < SpawnPriorityVehicleAmbulanceVsPoliceRatio ? PriorityType::Ambulance : PriorityType::Police
                       VehiclePriority.new(dir, sx, sy, type)
                     else
                       VehicleCivilian.new(dir, sx, sy)
