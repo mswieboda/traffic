@@ -12,8 +12,10 @@ module Traffic
     property y : Float32
     property type : NodeType
     property connections = Array(Node).new
+    property sprite_offset_x : Float32 = 0.0_f32
+    property sprite_offset_y : Float32 = 0.0_f32
 
-    def initialize(@x, @y, @type)
+    def initialize(@x, @y, @type, @sprite_offset_x = 0.0_f32, @sprite_offset_y = 0.0_f32)
     end
 
     def distance_to(other : Node)
@@ -47,7 +49,11 @@ module Traffic
                    when "TargetVIP"       then NodeType::TargetVIP
                    else next
                    end
-            @nodes << Node.new(obj.x, obj.y, type)
+            
+            ox = obj.properties["sprite_tile_offset_x"]?.try(&.as_f.to_f32) || 0.0_f32
+            oy = obj.properties["sprite_tile_offset_y"]?.try(&.as_f.to_f32) || 0.0_f32
+            
+            @nodes << Node.new(obj.x, obj.y, type, ox, oy)
           end
         end
       end
@@ -95,8 +101,10 @@ module Traffic
     private def is_road?(map, tx, ty)
       tile = map.tile_at(tx, ty)
       return false unless tile
-      gid = tile.local_tile_id + 1 # Tileset gid
-      # Based on tiles.png: 1,2 (H road), 3,4 (V road), 5-16 (Intersections)
+
+      # GID range (current tileset)
+      gid = tile.local_tile_id + 1
+      # Based on tiles.png: 1-16 are road/intersections
       gid >= 1 && gid <= 16
     end
 

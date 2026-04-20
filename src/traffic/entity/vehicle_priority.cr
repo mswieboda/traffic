@@ -2,10 +2,11 @@ require "./vehicle"
 
 module Traffic
   class VehiclePriority < Vehicle
+    property type : PriorityType = PriorityType::Ambulance
     @time_to_destination : Float32 = 0.0_f32
 
-    def initialize(direction : GSDL::Direction, x : Int32 | Float32, y : Int32 | Float32)
-      super
+    def initialize(direction : GSDL::Direction, x : Int32 | Float32, y : Int32 | Float32, @type = PriorityType::Ambulance)
+      super(direction, x, y)
       @time_to_destination = 60.0_f32
     end
 
@@ -23,7 +24,14 @@ module Traffic
 
     def select_target(graph : NodeGraph)
       # Priority logic: Hospital, Police, etc.
-      targets = graph.nodes.select { |n| n.type.target_ambulance? }
+      type_node = case @type
+                  when .ambulance? then NodeType::TargetAmbulance
+                  when .police?    then NodeType::TargetPolice
+                  when .vip?       then NodeType::TargetVIP
+                  else NodeType::Exit
+                  end
+
+      targets = graph.nodes.select { |n| n.type == type_node }
 
       # Fallback to random exit if no specific target found or 30% of the time
       if targets.empty? || Random.rand < 0.3

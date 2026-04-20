@@ -3,6 +3,7 @@ module Traffic
     @map : GSDL::TileMap
     @intersections : Array(Intersection) = [] of Intersection
     @vehicles : Array(Vehicle) = [] of Vehicle
+    @target_areas : Array(TargetArea) = [] of TargetArea
     @selected_vehicle : Vehicle? = nil
     @node_graph : NodeGraph = NodeGraph.new
 
@@ -41,6 +42,15 @@ module Traffic
 
       # Build Node Graph
       @node_graph.build(@map, @intersections)
+
+      # Create Target Areas from Graph Nodes
+      @node_graph.nodes.each do |node|
+        if node.type.target_ambulance? || node.type.target_police? || node.type.target_vip?
+          area = TargetArea.new(node.type, node.x, node.y, node.sprite_offset_x, node.sprite_offset_y)
+          @target_areas << area
+          add_child(area)
+        end
+      end
 
       GSDL::Data.increment("total_escorted", 0)
       GSDL::Data.increment("ambulances", 0)
@@ -121,6 +131,7 @@ module Traffic
 
       @map.update(dt)
       @intersections.each(&.update(dt))
+      @target_areas.each(&.update(dt))
 
       @vehicles.each(&.update(dt, @intersections, @vehicles))
       @vehicles.reject! do |vehicle|
@@ -203,11 +214,14 @@ module Traffic
 
       @map.draw(draw)
       @intersections.each(&.draw(draw))
+      @target_areas.each(&.draw(draw))
 
       # draw_debug_graph(draw) # Uncomment to see nodes and connections
 
       # 3. Draw vehicles
-      draw_selected_vehicle_path(draw)
+      if selected = @selected_vehicle
+        selected.draw_path(draw, @intersections)
+      end
       @vehicles.each(&.draw(draw))
 
       # 4. Draw Black border around map
@@ -241,22 +255,6 @@ module Traffic
            elsif dy.abs > 1
              GSDL::Box.new(width: 2_f32, height: dy.abs.to_f32, x: node.x - 1.0_f32, y: Math.min(node.y, conn.y).to_f32, color: GSDL::Color.new(r: 255, g: 255, b: 0, a: 128), z_index: 90).draw(draw)
            end
-        end
-      end
-    end
-
-    def draw_selected_vehicle_path(draw : GSDL::Draw)
-      if selected = @selected_vehicle
-        segments = selected.project_path_segments(@intersections)
-        segments.each do |seg|
-          GSDL::Box.new(
-            width: seg.w,
-            height: seg.h,
-            x: seg.x,
-            y: seg.y,
-            color: GSDL::ColorScheme.get(:highlight_alt),
-            z_index: -5
-          ).draw(draw)
         end
       end
     end

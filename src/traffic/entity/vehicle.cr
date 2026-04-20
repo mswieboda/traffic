@@ -23,6 +23,7 @@ module Traffic
     property next_action : IntersectionAction = IntersectionAction::Straight
     property lane_state : LaneState = LaneState::Stable
     property target_node : Node? = nil
+    property node_path = Array(Node).new
     property? finished : Bool = false
 
     abstract def select_target(graph : NodeGraph)
@@ -207,6 +208,7 @@ module Traffic
 
     def calculate_path(graph : NodeGraph)
       @path.clear
+      @node_path.clear
       return unless target = @target_node
 
       # 1. Find the nearest node in front of us to start the path
@@ -223,63 +225,44 @@ module Traffic
       return unless start_node
 
       # 2. Find path to target
-      node_path = Pathfinder.find_path(start_node, target)
-      return if node_path.size < 2
+      @node_path = Pathfinder.find_path(start_node, target)
+      return if @node_path.empty?
 
       # 3. Convert node sequence to IntersectionActions
       current_dir = self.direction
-      (0...node_path.size - 1).each do |i|
-        curr = node_path[i]
-        nxt = node_path[i + 1]
+      if @node_path.size >= 2
+        (0...@node_path.size - 1).each do |i|
+          curr = @node_path[i]
+          nxt = @node_path[i + 1]
 
-        # Determine direction needed to get from curr to nxt
-        needed_dir = if (nxt.x - curr.x).abs < 1.0
-                       nxt.y > curr.y ? GSDL::Direction::South : GSDL::Direction::North
-                     else
-                       nxt.x > curr.x ? GSDL::Direction::East : GSDL::Direction::West
-                     end
+          # Determine direction needed to get from curr to nxt
+          needed_dir = if (nxt.x - curr.x).abs < 1.0
+                         nxt.y > curr.y ? GSDL::Direction::South : GSDL::Direction::North
+                       else
+                         nxt.x > curr.x ? GSDL::Direction::East : GSDL::Direction::West
+                       end
 
-        action = determine_action(current_dir, needed_dir)
-        @path << action
-        current_dir = needed_dir
+          action = determine_action(current_dir, needed_dir)
+          @path << action
+          current_dir = needed_dir
+        end
       end
 
       @next_action = @path.shift? || IntersectionAction::Straight
     end
 
-    private def determine_action(current : GSDL::Direction, target : GSDL::Direction) : IntersectionAction
-      return IntersectionAction::Straight if current == target
-
-      case current
-      when .east?
-        return IntersectionAction::Right if target.south?
-        return IntersectionAction::Left if target.north?
-      when .west?
-        return IntersectionAction::Right if target.north?
-        return IntersectionAction::Left if target.south?
-      when .north?
-        return IntersectionAction::Right if target.east?
-        return IntersectionAction::Left if target.west?
-      when .south?
-        return IntersectionAction::Right if target.west?
-        return IntersectionAction::Left if target.east?
+    def draw_path(draw : GSDL::Draw, intersections : Array(Intersection))
+      segments = project_path_segments(intersections)
+      segments.each do |seg|
+        GSDL::Box.new(
+          width: seg.w,
+          height: seg.h,
+          x: seg.x,
+          y: seg.y,
+          color: GSDL::ColorScheme.get(:highlight_alt),
+          z_index: -5
+        ).draw(draw)
       end
-
-      # If we reach here, it's a U-turn or invalid
-      IntersectionAction::Straight
-    end
-
-    def distance_to(other_x : Float32, other_y : Float32)
-      Math.sqrt((self.x - other_x)**2 + (self.y - other_y)**2)
-    end
-
-    def clicked?(mx : Float32, my : Float32) : Bool
-      target_in?(mx, my)
-    end
-
-    def area_bounding_box : GSDL::FRect
-      # 4px padding around the sprite
-      GSDL::FRect.new(-4_f32, -4_f32, width.to_f32 + 8_f32, height.to_f32 + 8_f32)
     end
 
     def project_path_segments(intersections : Array(Intersection)) : Array(GSDL::FRect)
@@ -333,6 +316,41 @@ module Traffic
       seg_x, seg_y = (cx < final_x ? cx : final_x) - (thickness / 2), (cy < final_y ? cy : final_y) - (thickness / 2)
       segments << GSDL::FRect.new(seg_x.to_f32, seg_y.to_f32, ((cx - final_x).abs + thickness).to_f32, ((cy - final_y).abs + thickness).to_f32)
       segments
+    end
+
+    def distance_to(other_x : Float32, other_y : Float32)
+      Math.sqrt((self.x - other_x)**2 + (self.y - other_y)**2)
+    end
+
+    def clicked?(mx : Float32, my : Float32) : Bool
+      target_in?(mx, my)
+    end
+
+    def area_bounding_box : GSDL::FRect
+      # 4px padding around the sprite
+      GSDL::FRect.new(-4_f32, -4_f32, width.to_f32 + 8_f32, height.to_f32 + 8_f32)
+    end
+
+    private def determine_action(current : GSDL::Direction, target : GSDL::Direction) : IntersectionAction
+      return IntersectionAction::Straight if current == target
+
+      case current
+      when .east?
+        return IntersectionAction::Right if target.south?
+        return IntersectionAction::Left if target.north?
+      when .west?
+        return IntersectionAction::Right if target.north?
+        return IntersectionAction::Left if target.south?
+      when .north?
+        return IntersectionAction::Right if target.east?
+        return IntersectionAction::Left if target.west?
+      when .south?
+        return IntersectionAction::Right if target.west?
+        return IntersectionAction::Left if target.east?
+      end
+
+      # If we reach here, it's a U-turn or invalid
+      IntersectionAction::Straight
     end
 
     def update(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
@@ -590,6 +608,7 @@ module Traffic
                 self.direction, self.x, self.y = old_dir, old_x, old_y
               else
                 @next_action = path.shift? || IntersectionAction::Straight
+                @node_path.shift?
                 @safety_timer = GSDL::Timer.new(0.5.seconds); @safety_timer.try(&.start)
               end
             else
@@ -597,6 +616,7 @@ module Traffic
             end
           elsif @next_action.straight?
             @next_action = path.shift? || IntersectionAction::Straight
+            @node_path.shift?
           end
         end
       else

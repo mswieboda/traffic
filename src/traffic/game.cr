@@ -81,6 +81,11 @@ module Traffic
         {"ambulance-sb-body", "gfx/ambulance-sb-body.png"},
         {"ambulance-sb-top", "gfx/ambulance-sb-top.png"},
         {"traffic-signal-hud", "gfx/traffic-signal-hud.png"},
+
+        # Destinations (using ambulance tops as placeholders)
+        {"hospital", "gfx/ambulance-sb-top.png"},
+        {"precinct", "gfx/traffic-signal-eb.png"},
+        {"penthouse", "gfx/traffic-signal-sb.png"},
       ]
     end
 

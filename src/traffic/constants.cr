@@ -2,6 +2,12 @@ module Traffic
   TileSize = 128.0_f32
   IntersectionSize = 2 * TileSize
 
+  enum PriorityType
+    Ambulance
+    Police
+    VIP
+  end
+
   # Lane center offsets from road start (Proportional to TileSize)
   # Tile 1: 0.25 and 0.75 | Tile 2: 1.25 and 1.75
   LaneSegments = 8

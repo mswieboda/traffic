@@ -40,7 +40,19 @@
                  "visible":true,
                  "width":0,
                  "x":1280,
-                 "y":832
+                 "y":832,
+                 "properties": [
+                   {
+                     "name": "sprite_tile_offset_x",
+                     "type": "float",
+                     "value": 0.0
+                   },
+                   {
+                     "name": "sprite_tile_offset_y",
+                     "type": "float",
+                     "value": -1.0
+                   }
+                 ]
                 },
                 {
                  "class":"TargetPolice",
@@ -51,7 +63,19 @@
                  "visible":true,
                  "width":0,
                  "x":960,
-                 "y":256
+                 "y":256,
+                 "properties": [
+                   {
+                     "name": "sprite_tile_offset_x",
+                     "type": "float",
+                     "value": -1.0
+                   },
+                   {
+                     "name": "sprite_tile_offset_y",
+                     "type": "float",
+                     "value": 0.0
+                   }
+                 ]
                 },
                 {
                  "class":"TargetVIP",
@@ -62,7 +86,19 @@
                  "visible":true,
                  "width":0,
                  "x":960,
-                 "y":1152
+                 "y":1152,
+                 "properties": [
+                   {
+                     "name": "sprite_tile_offset_x",
+                     "type": "float",
+                     "value": -1.0
+                   },
+                   {
+                     "name": "sprite_tile_offset_y",
+                     "type": "float",
+                     "value": 0.0
+                   }
+                 ]
                 }
             ],
          "opacity":1,
