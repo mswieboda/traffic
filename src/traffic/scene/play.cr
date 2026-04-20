@@ -9,8 +9,8 @@ module Traffic
     @spawn_points : Array(Tuple(GSDL::Direction, Float32, Float32)) = [] of Tuple(GSDL::Direction, Float32, Float32)
 
     @spawn_timer : GSDL::Timer
-    @spawn_interval_min : Float32 = 0.5
-    @spawn_interval_max : Float32 = 2.0
+    @spawn_interval_min : Float32 = 0.25
+    @spawn_interval_max : Float32 = 1.0
 
     def initialize
       super(:main_menu)
@@ -56,15 +56,26 @@ module Traffic
 
       GSDL::Data.increment("total_escorted", 0)
       GSDL::Data.increment("ambulances", 0)
+      GSDL::Data.increment("ambulances_x", 0)
       GSDL::Data.increment("police", 0)
+      GSDL::Data.increment("police_x", 0)
       GSDL::Data.increment("vips", 0)
+      GSDL::Data.increment("vips_x", 0)
 
       hud = GSDL::HUD.new
 
       text_data_template = "Total: {total_escorted}\n" \
-        "<c:red>A</c>: {ambulances} " \
-        "<c:blue>P</c>: {police} " \
-        "<c:gold>V</c>: {vips}"
+        "<c:red>A</c>: {ambulances} <c:red>X</c>: {ambulances_x}/3\n" \
+        "<c:blue>P</c>: {police} <c:red>X</c>: {police_x}/3"
+      hud << GSDL::HUDText.new(
+        text_data_template: text_data_template,
+        anchor: GSDL::Anchor::TopRight,
+        offset_x: 8,
+        offset_y: 8,
+        origin: {1_f32, 0_f32},
+        color: GSDL::ColorScheme.get(:hud_main),
+        align: GSDL::Font::Align::Right
+      )
       hud << GSDL::HUDText.new(
         text_data_template: text_data_template,
         anchor: GSDL::Anchor::TopRight,
@@ -84,12 +95,30 @@ module Traffic
 
       update_spawner(dt)
 
-      # Zoom controls
+      camera_update(dt)
+
+      intersections_update(dt)
+
+      @map.update(dt)
+
+      # NOTE: target areas probably do not need to update, they are static
+      # @target_areas.each(&.update(dt))
+
+      vehicles_update(dt)
+
+      # manually update HUD
+      hud.try &.update(dt)
+    end
+
+    private def camera_update(dt : Float32)
+      # Zoom in keyboard
       if GSDL::Input.action?(:zoom_in)
         zoom = camera.zoom + 1.0_f32 * dt
         zoom = 2_f32 if zoom > 2_f32
         camera.zoom = zoom
       end
+
+      # Zoom out keyboard
       if GSDL::Input.action?(:zoom_out)
         zoom = camera.zoom - 1.0_f32 * dt
         zoom = 0.25_f32 if zoom < 0.25_f32
@@ -105,6 +134,22 @@ module Traffic
         camera.zoom = zoom
       end
 
+      camera.update(dt)
+    end
+
+    private def vehicles_update(dt : Float32)
+      @vehicles.each(&.update(dt, @map, @intersections, @vehicles))
+      remove_vehicles_finished_or_target_reached()
+
+      # Deselect if selected vehicle is gone or wrecked
+      if selected = @selected_vehicle
+        unless @vehicles.includes?(selected) && !selected.wrecked?
+          @selected_vehicle = nil
+        end
+      end
+    end
+
+    private def intersections_update(dt : Float32)
       @intersections.each(&.update(dt))
 
       # Toggle intersections or select vehicles on click
@@ -145,43 +190,39 @@ module Traffic
           end
         end
       end
+    end
 
-      @map.update(dt)
-      # @intersections.each(&.update(dt))
-      @target_areas.each(&.update(dt))
-
-      @vehicles.each(&.update(dt, @map, @intersections, @vehicles))
+    private def remove_vehicles_finished_or_target_reached
       @vehicles.reject! do |vehicle|
         if vehicle.finished? || vehicle.off_screen?(@map.width, @map.height)
           if vehicle.is_a?(VehiclePriority) && (vehicle.finished? || vehicle.target_reached?)
-            GSDL::Data.increment("total_escorted", 1)
-            if node_type = vehicle.target_node.try(&.type)
-              case
-              when node_type.target_ambulance? then GSDL::Data.increment("ambulances", 1)
-              when node_type.target_police?    then GSDL::Data.increment("police", 1)
-              when node_type.target_vip?       then GSDL::Data.increment("vips", 1)
-              else # it was an exit
-                GSDL::Data.increment("ambulances", 1) # fallback
+            case vehicle.type
+            when .ambulance?
+              if vehicle.late_to_target?
+                GSDL::Data.increment("ambulances_x", 1)
+              else
+                GSDL::Data.increment("ambulances", 1)
+              end
+            when .police?
+              if vehicle.late_to_target?
+                GSDL::Data.increment("police_x", 1)
+              else
+                GSDL::Data.increment("police", 1)
+              end
+            when .vip?
+              if vehicle.late_to_target?
+                GSDL::Data.increment("vips_x", 1)
+              else
+                GSDL::Data.increment("vips", 1)
               end
             end
           end
+
           true
         else
           false
         end
       end
-
-      # Deselect if selected vehicle is gone or wrecked
-      if selected = @selected_vehicle
-        unless @vehicles.includes?(selected) && !selected.wrecked?
-          @selected_vehicle = nil
-        end
-      end
-
-      camera.update(dt)
-
-      # manually update HUD
-      hud.try &.update(dt)
     end
 
     private def update_spawner(dt : Float32)
@@ -193,7 +234,7 @@ module Traffic
     end
 
     private def spawn_vehicle
-      is_priority = Random.rand < 0.1
+      is_priority = Random.rand < 0.6
 
       return if @spawn_points.empty?
       dir, sx, sy = @spawn_points.sample

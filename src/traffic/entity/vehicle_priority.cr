@@ -7,7 +7,7 @@ module Traffic
 
     def initialize(direction : GSDL::Direction, x : Int32 | Float32, y : Int32 | Float32, @type = PriorityType::Ambulance)
       super(direction, x, y)
-      @time_to_destination = 60.0_f32
+      @time_to_destination = 0.0_f32
     end
 
     def priority? : Bool
@@ -32,6 +32,10 @@ module Traffic
 
     def base_speed_range : Range(Float32, Float32)
       (400.0_f32)..(550.0_f32)
+    end
+
+    def late_to_target? : Bool
+      @time_to_destination >= PriorityTimeToDestination
     end
 
     def select_target(graph : NodeGraph)
@@ -130,14 +134,69 @@ module Traffic
     end
 
     def update_special_behavior(dt : Float32, intersections : Array(Intersection), all_vehicles : Array(Vehicle))
-      decay_rate = 1.0_f32
-      decay_rate = is_waiting_on_wreck?(all_vehicles) ? 10.0_f32 : 3.0_f32 if @waiting
-      @time_to_destination -= dt * decay_rate
-      @time_to_destination = 0.0_f32 if @time_to_destination < 0
+      add_rate = 1.0_f32
+      add_rate = is_waiting_on_wreck?(all_vehicles) ? 10.0_f32 : 3.0_f32 if @waiting
+      @time_to_destination += dt * add_rate
+      @time_to_destination = PriorityTimeToDestination if @time_to_destination >= PriorityTimeToDestination
     end
 
     def draw_status_overlay(draw : GSDL::Draw, th : Float32, cam_x : Float32, cam_y : Float32)
       # Priority-specific status (e.g. destination time) can be added here if needed
+      bar_w, bar_h = 40.0_f32, 6.0_f32
+      bar_x, bar_y = self.x - (bar_w / 2.0_f32), self.y - (th / 2.0_f32) - 12.0_f32
+
+      # Background
+      GSDL::Box.new(
+        width: bar_w,
+        height: bar_h,
+        x: bar_x,
+        y: bar_y,
+        color: GSDL::Color.new(30, 30, 30, 150),
+        z_index: z_index + 1
+      ).draw(draw)
+
+      # ANXIOUS    = 5.0_f32
+      # FRUSTRATED = 20.0_f32
+      # ROAD_RAGE  = 35.0_f32
+
+      percent = Math.min(1.0_f32, @time_to_destination / PriorityTimeToDestination)
+      color = if percent >= 1.0
+          # red
+          GSDL::Color.new(255, 50, 50)
+        elsif percent >= 0.6
+          # orange
+          GSDL::Color.new(255, 120, 50)
+        elsif percent >= 0.15
+          # yellow
+          GSDL::Color.new(255, 255, 50)
+        else
+          # green
+          GSDL::Color.new(100, 255, 100)
+        end
+
+      # color = road_rage? ? GSDL::Color.new(255, 50, 50) : (frustrated? ? GSDL::Color.new(255, 120, 50) : (anxious? ? GSDL::Color.new(255, 255, 50) : GSDL::Color.new(100, 255, 100)))
+
+      # Fill
+      GSDL::Box.new(
+        width: bar_w * percent,
+        height: bar_h,
+        x: bar_x,
+        y: bar_y,
+        color: color,
+        z_index: z_index + 2
+      ).draw(draw)
+
+      # TODO: make this an X
+      if percent >= 1
+        GSDL::Box.new(
+          width: 8,
+          height: 14,
+          x: bar_x + bar_w + 4,
+          y: bar_y - 4,
+          color: GSDL::Color.new(255, 0, 0),
+          z_index: z_index + 3
+        ).draw(draw)
+      end
     end
   end
 end

@@ -32,4 +32,5 @@ module Traffic
   end
 
   PriorityWaitTime = 2.seconds
+  PriorityTimeToDestination = 60_f32 # seconds
 end
