@@ -165,7 +165,7 @@ module Traffic
     end
 
     private def spawn_vehicle
-      is_priority = Random.rand < 0.75
+      is_priority = Random.rand < 0.1
       choice = Random.rand(4)
 
       kclass = is_priority ? VehiclePriority : VehicleCivilian
@@ -185,11 +185,11 @@ module Traffic
       # Safety check: do not spawn if overlapping another vehicle
       if new_vehicle.target_node && @vehicles.none?(&.collides?(new_vehicle))
         if new_vehicle.path.empty? && !new_vehicle.target_reached?
-           puts "Vehicle spawned with no path and not at target! (Target: #{new_vehicle.target_node.try(&.type)})"
+           # puts "Vehicle spawned with no path and not at target! (Target: #{new_vehicle.target_node.try(&.type)})"
         end
         @vehicles << new_vehicle
       else
-        puts "Vehicle failed to spawn: No target or collision detected. (Target: #{new_vehicle.target_node.try(&.type)})"
+        # puts "Vehicle failed to spawn: No target or collision detected. (Target: #{new_vehicle.target_node.try(&.type)})"
       end
     end
 

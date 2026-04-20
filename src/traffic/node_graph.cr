@@ -72,7 +72,7 @@ module Traffic
         end
       end
 
-      puts "NodeGraph: Built #{@nodes.size} nodes."
+      # puts "NodeGraph: Built #{@nodes.size} nodes."
 
       # 4. Connect Nodes
       conn_count = 0
@@ -88,7 +88,8 @@ module Traffic
           end
         end
       end
-      puts "NodeGraph: Created #{conn_count} connections."
+
+      # puts "NodeGraph: Created #{conn_count} connections."
     end
 
     private def is_road?(map, tx, ty)
