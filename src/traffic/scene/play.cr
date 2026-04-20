@@ -103,6 +103,8 @@ module Traffic
         camera.zoom = zoom
       end
 
+      @intersections.each(&.update(dt))
+
       # Toggle intersections or select vehicles on click
       if GSDL::Mouse.just_pressed?(GSDL::Mouse::ButtonLeft)
         mx, my = GSDL::Mouse.position
@@ -122,15 +124,19 @@ module Traffic
         else
           clicked_intersection = @intersections.find(&.clicked?(world_mx, world_my))
           if clicked_intersection
-            clicked_intersection.toggle
+            # Deselect others
+            @intersections.each { |i| i.selected = false if i != clicked_intersection }
+            clicked_intersection.selected = true
+            @selected_vehicle = nil
           else
+            @intersections.each { |i| i.selected = false }
             @selected_vehicle = nil
           end
         end
       end
 
       @map.update(dt)
-      @intersections.each(&.update(dt))
+      # @intersections.each(&.update(dt))
       @target_areas.each(&.update(dt))
 
       @vehicles.each(&.update(dt, @intersections, @vehicles))

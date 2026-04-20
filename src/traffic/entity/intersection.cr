@@ -16,6 +16,7 @@ module Traffic
     property state : IntersectionSignal = IntersectionSignal::GreenNS
     getter tile_x : Int32
     getter tile_y : Int32
+    property? selected : Bool = false
 
     GreenDuration = 28_f32
     GreenLeftDuration = 5_f32
@@ -30,6 +31,9 @@ module Traffic
     @signal_sb : TrafficSignal
     @signal_wb : TrafficSignal
     @signal_hud : GSDL::AnimatedSprite
+
+    @flip_button : GSDL::Button
+    @next_button : GSDL::Button
 
     def initialize(@tile_x, @tile_y)
       @x = @tile_x * TileSize
@@ -74,6 +78,37 @@ module Traffic
       # z-index, intersection tile is -10 so just add a few just in case, -5 is draw_selected_vehicle_path
       @signal_hud.z_index = -8
 
+      # Buttons
+      @flip_button = GSDL::Button.new(
+        on_click: ->(s : String) { puts ">>> FLIP!" },
+        font: GSDL::Font.default(48.0_f32),
+        text: "FLIP",
+        x: GSDL::Game.width,
+        y: GSDL::Game.height,
+        padding_x: 16,
+        padding_y: 8,
+        origin: {1_f32, 1_f32},
+        scale: {0.5_f32, 0.5_f32},
+        draw_relative_to_camera: false,
+      )
+      @flip_button.x = GSDL::Game.width - 16_f32
+
+      @next_button = GSDL::Button.new(
+        on_click: ->(s : String) { puts ">>> CYCLE!"; toggle },
+        font: GSDL::Font.default(48.0_f32),
+        text: "CYCLE",
+        x: GSDL::Game.width,
+        y: GSDL::Game.height,
+        padding_x: 16,
+        padding_y: 8,
+        origin: {1_f32, 1_f32},
+        scale: {0.5_f32, 0.5_f32},
+        draw_relative_to_camera: false,
+      )
+      @next_button.x = @flip_button.x - @flip_button.width / 2_f32 - 16
+
+
+      # NOTE: add_child needs to go after any @var intialization
       add_child(@signal_nb)
       add_child(@signal_eb)
       add_child(@signal_sb)
@@ -85,6 +120,25 @@ module Traffic
 
     def update(dt : Float32)
       return unless super(dt)
+
+      if selected?
+        # NEXT Button Hover Effect
+        if GSDL::Mouse.in?(@next_button.screen_x, @next_button.screen_y, @next_button.screen_width, @next_button.screen_height)
+          @next_button.color = GSDL::ColorScheme.get(:ui_hover)
+        else
+          @next_button.color = GSDL::ColorScheme.get(:ui_text)
+        end
+
+        # FLIP Button Hover Effect
+        if GSDL::Mouse.in?(@flip_button.screen_x, @flip_button.screen_y, @flip_button.screen_width, @flip_button.screen_height)
+          @flip_button.color = GSDL::ColorScheme.get(:ui_hover)
+        else
+          @flip_button.color = GSDL::ColorScheme.get(:ui_text)
+        end
+
+        @flip_button.update(dt)
+        @next_button.update(dt)
+      end
 
       if @state_timer.done?
         case @state
@@ -210,6 +264,11 @@ module Traffic
 
     def draw(draw : GSDL::Draw)
       super(draw)
+
+      if selected?
+        @flip_button.draw(draw)
+        @next_button.draw(draw)
+      end
     end
   end
 end

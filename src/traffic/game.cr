@@ -23,7 +23,7 @@ module Traffic
       # Configure Cyberpunk Color Scheme
       GSDL::ColorScheme.configure(
         ui_bg: "#131313",       # Blackish
-        ui_text: "#FFFFFF",     # Neon Lime
+        ui_text: "#FFFFFF",     # white
         ui_text_alt: neon_lime, # Neon Lime
         ui_hover: neon_lime,    # neon
         hud_main: "#FFFFFF",    # white
