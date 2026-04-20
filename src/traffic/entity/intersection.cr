@@ -94,7 +94,7 @@ module Traffic
       @flip_button.x = GSDL::Game.width - 16_f32
 
       @next_button = GSDL::Button.new(
-        on_click: ->(s : String) { puts ">>> CYCLE!"; toggle },
+        on_click: ->(s : String) { toggle },
         font: GSDL::Font.default(48.0_f32),
         text: "CYCLE",
         x: GSDL::Game.width,
@@ -254,6 +254,7 @@ module Traffic
         return
       end
 
+      GSDL::AudioManager.get("ding").play
       @state_timer.restart
       update_signal_frames
     end
@@ -263,6 +264,18 @@ module Traffic
     end
 
     def draw(draw : GSDL::Draw)
+      if selected?
+        padding = TileSize / 4.0_f32
+        GSDL::Box.new(
+          x: @x - padding,
+          y: @y - padding,
+          width: IntersectionSize + padding * 2,
+          height: IntersectionSize + padding * 2,
+          color: GSDL::ColorScheme.get(:highlight_alt),
+          z_index: -9
+        ).draw(draw)
+      end
+
       super(draw)
 
       if selected?

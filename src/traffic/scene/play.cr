@@ -124,9 +124,13 @@ module Traffic
         else
           clicked_intersection = @intersections.find(&.clicked?(world_mx, world_my))
           if clicked_intersection
-            # Deselect others
-            @intersections.each { |i| i.selected = false if i != clicked_intersection }
-            clicked_intersection.selected = true
+            if clicked_intersection.selected?
+              clicked_intersection.toggle
+            else
+              # Deselect others
+              @intersections.each { |i| i.selected = false if i != clicked_intersection }
+              clicked_intersection.selected = true
+            end
             @selected_vehicle = nil
           else
             @intersections.each { |i| i.selected = false }
