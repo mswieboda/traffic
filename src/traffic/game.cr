@@ -14,22 +14,28 @@ module Traffic
         fullscreen: true,
       )
 
+      neon_lime = "#99ff33"
+      neon_red = "#f50909"
+      neon_green = "#0909f5"
+      neon_blue = "#0909f5"
+      neon_yellow = "#f5f509"
+
       # Configure Cyberpunk Color Scheme
       GSDL::ColorScheme.configure(
         ui_bg: "#131313",       # Blackish
         ui_text: "#FFFFFF",     # Neon Lime
-        ui_text_alt: "#99FF33", # Neon Lime
-        ui_hover: "#99FF33",    # neon
+        ui_text_alt: neon_lime, # Neon Lime
+        ui_hover: neon_lime,    # neon
         hud_main: "#FFFFFF",    # white
-        main: "#99FF33",        # neon Lime
+        main: neon_lime,        # neon Lime
         grass: "#396313",       # darkish olive green
         highlight_alt: GSDL::Color.new(g: 102, b: 255, a: 128), # Transparent Blue
 
         # Car Paint Colors
-        car_red: GSDL::Color.from_hex("#f50909"),
-        car_green: GSDL::Color.from_hex("#0909f5"),
-        car_blue: GSDL::Color.from_hex("#0909f5"),
-        car_yellow: GSDL::Color.from_hex("#f5f509"),
+        car_red: neon_red,
+        car_green: neon_green, # neon green
+        car_blue: neon_blue, # neon blue
+        car_yellow: neon_yellow, # neon yellow
         car_silver: GSDL::Color.gray(192),
         car_gray: GSDL::Color.gray(96),
         car_dark_green: GSDL::Color.new(g: 102),
@@ -37,10 +43,13 @@ module Traffic
         car_dark_red: GSDL::Color.new(r: 102),
         car_teal: GSDL::Color.new(g: 102, b: 102),
         car_dark_blue: GSDL::Color.new(b: 102),
-
-        # Wrecked Color
         # TODO: uses subtraction, probably should be redone for clarity
-        wrecked: GSDL::Color.gray(v: 192, a: 32)
+        wrecked: GSDL::Color.gray(v: 192, a: 32),
+
+        # target neon colors
+        target_hospital: neon_red, # neon red
+        target_police: neon_blue, # neon red
+        target_vip: neon_yellow, # neon red
       )
     end
 
@@ -64,10 +73,15 @@ module Traffic
     def load_textures : Array(Tuple(String, String))
       [
         {"tiles", "gfx/tiles.png"},
+
+        # traffic intersection
         {"traffic-signal-nb", "gfx/traffic-signal-nb.png"},
         {"traffic-signal-eb", "gfx/traffic-signal-eb.png"},
         {"traffic-signal-sb", "gfx/traffic-signal-sb.png"},
         {"traffic-signal-wb", "gfx/traffic-signal-wb.png"},
+        {"traffic-signal-hud", "gfx/traffic-signal-hud.png"},
+
+        # vehicles
         {"car-eb-body", "gfx/car-eb-body.png"},
         {"car-eb-top", "gfx/car-eb-top.png"},
         {"car-nb-body", "gfx/car-nb-body.png"},
@@ -80,10 +94,10 @@ module Traffic
         {"ambulance-nb-top", "gfx/ambulance-nb-top.png"},
         {"ambulance-sb-body", "gfx/ambulance-sb-body.png"},
         {"ambulance-sb-top", "gfx/ambulance-sb-top.png"},
-        {"traffic-signal-hud", "gfx/traffic-signal-hud.png"},
 
-        # Destinations (using ambulance tops as placeholders)
-        {"hospital", "gfx/ambulance-sb-top.png"},
+        # target destinations
+        {"hospital", "gfx/hospital.png"},
+        # (using placeholders)
         {"precinct", "gfx/traffic-signal-eb.png"},
         {"penthouse", "gfx/traffic-signal-sb.png"},
       ]

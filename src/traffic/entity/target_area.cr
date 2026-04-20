@@ -19,25 +19,28 @@ module Traffic
       sprite.x = ox * TileSize
       sprite.y = oy * TileSize
       add_child(sprite)
-
-      # Pulse animation logic could be added here
     end
 
     def draw(draw : GSDL::Draw)
       super(draw)
       
-      # Add neon glow under/around it
+      draw_pulse_animation(draw)
+    end
+
+    def draw_pulse_animation(draw : GSDL::Draw)
+      # neon glow under/around target area
       color = case @type
-              when .target_ambulance? then GSDL::Color.new(255, 50, 50, 100) # Neon Red
-              when .target_police?    then GSDL::Color.new(50, 50, 255, 100) # Neon Blue
-              when .target_vip?       then GSDL::Color.new(255, 255, 50, 100) # Neon Yellow
+              when .target_ambulance? then GSDL::ColorScheme.get(:target_hospital)
+              when .target_police?    then GSDL::ColorScheme.get(:target_police)
+              when .target_vip?       then GSDL::ColorScheme.get(:target_vip)
               else GSDL::Color::White
               end
-      
+      color.alpha = 128_u8
+
       # Simple pulse logic based on time
       pulse = (Math.sin((GSDL.ticks / 1000.0) * 4.0).to_f32 + 1.0_f32) / 2.0_f32
-      glow_size = TileSize * (1.2_f32 + pulse * 0.2_f32)
-      
+      glow_size = TileSize * (1.25_f32 + pulse * 0.2_f32)
+
       GSDL::Box.new(
         width: glow_size,
         height: glow_size,
