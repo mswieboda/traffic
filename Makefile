@@ -10,7 +10,7 @@ RM_CMD := rm -rf
 MKDIR_CMD := mkdir -p
 PACKER_FILE := build/assets.pack
 PACKER_BIN := bin/gsdl-packer
-APP_NAME := "Template Game SDL"
+APP_NAME := "Traffic"
 GAME_NAME := traffic
 GAME_SRC := src/traffic.cr
 
