@@ -15,11 +15,11 @@
             "scaleInEditor": 1
         },
         "traffic.json": {
-            "scale": 0.6593,
+            "scale": 0.4296,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 1165.6302138631881,
-                "y": 915.3647808281511
+                "x": 2033.2867783985105,
+                "y": 2822.392923649907
             }
         },
         "traffic.json#tiles": {

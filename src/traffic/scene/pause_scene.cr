@@ -158,7 +158,7 @@ module Traffic
       if GSDL::Data.true?("game_over")
         @title.draw(draw)
         total = GSDL::Data.get("total_escorted").as_i
-        @sub_title.text = "You got <c:red>#{total}</c>"
+        @sub_title.text = "You got <c:red>XXX</c>"
         @sub_title.draw(draw)
         @start_button.draw(draw)
       else
