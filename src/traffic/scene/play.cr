@@ -29,6 +29,8 @@ module Traffic
       camera.zoom = 0.5_f32
       camera.set_boundary(@map)
       camera.speed = CameraSpeed
+      camera.x = 256
+      camera.y = 256
 
       @spawn_timer = GSDL::Timer.new(Random.rand(@spawn_interval_min..@spawn_interval_max).seconds)
       @spawn_timer.start

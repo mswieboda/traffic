@@ -4,7 +4,8 @@ module Traffic
     @start_play_button : GSDL::Button
     @title : GSDL::Text
     @sub_title : GSDL::RichText
-    @intro_text : GSDL::Text
+    @intro_text : GSDL::RichText
+    @intro_background : GSDL::Box
     @background : GSDL::Box
 
     def initialize
@@ -15,11 +16,12 @@ module Traffic
       ch = GSDL::Game.height // 2
 
       @title = GSDL::Text.new(
-        font: GSDL::Font.default(32.0_f32),
+        font: GSDL::Font.default(64.0_f32),
         text: "GAME OVER",
         x: GSDL::Game.width / 2_f32,
         y: GSDL::Game.height / 2_f32 - 100,
         origin: {0.5_f32, 1_f32},
+        scale: {0.5_f32, 0.5_f32},
         color: GSDL::Color::White,
         z_index: @z_index
       )
@@ -51,22 +53,39 @@ module Traffic
         draw_relative_to_camera: false,
       )
 
-      @intro_text = GSDL::Text.new(
-        font: GSDL::Font.default(20.0_f32),
-        text: "To play the game, do XYZ\nBlah Blah Blah\nEtc etc.",
+      intro_text = "Goal:\n" \
+        "Help the <c:red>ambulances</c> and <c:#3399dd>cop cars</c> get to the <c:red>hospitals</c> and <c:#3399dd>police stations</c>.\n" \
+        "Instructions:\n" \
+        "Click on an <c:green>intersection</c> once to select it. Click it again or press <c:green>CYCLE</c> to force it to the next <c:green>green</c> signal.\n" \
+        "Click <c:green>FLIP</c> to flip the direction of the <c:green</c> signal\n" \
+        "Click a <c:yellow>wrecked</c> car to clear it\n" \
+
+      @intro_text = GSDL::RichText.new(
+        font: GSDL::Font.default(36.0_f32),
+        text: intro_text,
         x: GSDL::Game.width / 2_f32,
-        y: GSDL::Game.height / 2_f32 - 100,
+        y: GSDL::Game.height / 2_f32,
         origin: {0.5_f32, 0.5_f32},
+        scale: {0.5_f32, 0.5_f32},
         color: GSDL::Color::White,
-        z_index: @z_index,
-        align: GSDL::Font::Align::Center
+        z_index: @z_index + 1,
+      )
+
+      @intro_background = GSDL::Box.new(
+        width: @intro_text.width + 32,
+        height: @intro_text.height + 32 + 96,
+        x: GSDL::Game.width / 2_f32,
+        y: GSDL::Game.height / 2_f32,
+        origin: {0.5_f32, 0.5_f32},
+        color: GSDL::Color.gray(v: 0, a: 192),
+        z_index: @z_index
       )
 
       @start_play_button = GSDL::Button.new(
         font: GSDL::Font.default(48.0_f32),
         text: "start",
         x: cw,
-        y: ch + 64,
+        y: ch + 88,
         padding_x: 32,
         padding_y: 16,
         origin: {0.5_f32, 0.5_f32},
@@ -137,6 +156,7 @@ module Traffic
         @sub_title.draw(draw)
         @start_button.draw(draw)
       else
+        @intro_background.draw(draw)
         @intro_text.draw(draw)
         @start_play_button.draw(draw)
       end
