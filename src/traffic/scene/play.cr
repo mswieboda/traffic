@@ -66,6 +66,7 @@ module Traffic
       GSDL::Data.increment("police_x", 0)
       GSDL::Data.increment("vips", 0)
       GSDL::Data.increment("vips_x", 0)
+      GSDL::Data.set("game_over", false)
 
       hud = GSDL::HUD.new
 
@@ -125,6 +126,7 @@ module Traffic
 
       self.pause_scene = PauseScene.new
       self.hud = hud
+      GSDL::Game.paused = true
     end
 
     def update(dt : Float32)
@@ -240,22 +242,12 @@ module Traffic
             when .ambulance?
               if vehicle.late_to_target?
                 add_x_check_for_game_over("ambulances", @ambulance_ui_strikes)
-                # xs = GSDL::Data.get("ambulances_x").as_i
-                # xs += 1
-                # xs = [xs, 3].min
-                # GSDL::Data.set("ambulances_x", xs)
-                # @ambulance_ui_strikes.as(GSDL::AnimatedSprite).frame_index = xs
               else
                 GSDL::Data.increment("ambulances", 1)
               end
             when .police?
               if vehicle.late_to_target?
                 add_x_check_for_game_over("police", @cop_ui_strikes)
-                # xs = GSDL::Data.get("police_x").as_i
-                # xs += 1
-                # xs = [xs, 3].min
-                # GSDL::Data.set("police_x", xs)
-                # @cop_ui_strikes.as(GSDL::AnimatedSprite).frame_index = xs
               else
                 GSDL::Data.increment("police", 1)
               end
@@ -286,7 +278,8 @@ module Traffic
       # game over check
       if xs >= 3
         # game over
-        Game.paused = true
+        GSDL::Data.set("game_over", true)
+        GSDL::Game.paused = true
       end
     end
 
