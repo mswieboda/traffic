@@ -54,17 +54,23 @@ module Traffic
       )
 
       intro_text = "Goal:\n" \
-        "Help the <c:red>ambulances</c> and <c:#3399dd>cop cars</c> get to the <c:red>hospitals</c> and <c:#3399dd>police stations</c>.\n" \
+        "Help the <c:red>ambulances</c> and <c:#3399dd>cop cars</c>\nget to their target <c:red>hospitals</c> and <c:#3399dd>police stations</c>.\n" \
+        "<c:transparent>|</c>\n" \
         "Instructions:\n" \
-        "Click on an <c:green>intersection</c> once to select it. Click it again or press <c:green>CYCLE</c> to force it to the next <c:green>green</c> signal.\n" \
-        "Click <c:green>FLIP</c> to flip the direction of the <c:green</c> signal\n" \
+        "Click on an <c:green>intersection</c> once to select it.\n" \
+        "Click it again or press <c:green>CYCLE</c> to force it to the next <c:green>green</c> signal.\n" \
+        "Click <c:green>FLIP</c> to flip the direction of the <c:green>green</c> signal\n" \
         "Click a <c:yellow>wrecked</c> car to clear it\n" \
+        "<c:transparent>|</c>\n" \
+        "Controls:\n" \
+        "Move Camera - WASD keys\n" \
+        "Zoom Camera - Q/E keys / mouse scroll"
 
       @intro_text = GSDL::RichText.new(
         font: GSDL::Font.default(36.0_f32),
         text: intro_text,
-        x: GSDL::Game.width / 2_f32,
-        y: GSDL::Game.height / 2_f32,
+        x: cw,
+        y: ch - 32,
         origin: {0.5_f32, 0.5_f32},
         scale: {0.5_f32, 0.5_f32},
         color: GSDL::Color::White,
@@ -72,10 +78,10 @@ module Traffic
       )
 
       @intro_background = GSDL::Box.new(
-        width: @intro_text.width + 32,
-        height: @intro_text.height + 32 + 96,
-        x: GSDL::Game.width / 2_f32,
-        y: GSDL::Game.height / 2_f32,
+        width: cw,
+        height: ch,
+        x: cw,
+        y: ch,
         origin: {0.5_f32, 0.5_f32},
         color: GSDL::Color.gray(v: 0, a: 192),
         z_index: @z_index
@@ -85,7 +91,7 @@ module Traffic
         font: GSDL::Font.default(48.0_f32),
         text: "start",
         x: cw,
-        y: ch + 88,
+        y: ch + 144,
         padding_x: 32,
         padding_y: 16,
         origin: {0.5_f32, 0.5_f32},
