@@ -74,6 +74,7 @@ module Traffic
 
     def load_textures : Array(Tuple(String, String))
       [
+        {"title-screen", "gfx/title-screen.png"},
         {"tiles", "gfx/tiles.png"},
 
         # traffic intersection

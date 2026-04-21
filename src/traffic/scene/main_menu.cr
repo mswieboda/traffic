@@ -3,32 +3,43 @@ require "./play"
 module Traffic
   class Scene::MainMenu < GSDL::Scene
     @start_button : GSDL::Button
+    @title_screen_sprite : GSDL::Sprite
 
     def initialize
       super(:main_menu)
 
-      hud = GSDL::HUD.new
-      hud << GSDL::HUDText.new(
-        font: GSDL::Font.default(96.0_f32),
-        text: "TRAFFIC",
-        anchor: GSDL::Anchor::TopCenter,
-        offset_y: 192,
-        origin: {0.5_f32, 0_f32},
-        scale: {0.5_f32, 0.5_f32},
-        color: GSDL::ColorScheme.get(:main),
-        align: GSDL::Font::Align::Center
-      )
 
       cw = GSDL::Game.width // 2
       ch = GSDL::Game.height // 2
 
+      @title_screen_sprite = GSDL::Sprite.new(
+        key: "title-screen",
+        x: cw,
+        y: ch,
+        origin: {0.5_f32, 0.5_f32},
+        scale: {0.7_f32, 0.7_f32}
+      )
+
+      # hud << GSDL::HUDText.new(
+      #   font: GSDL::Font.default(96.0_f32),
+      #   text: "TRAFFIC",
+      #   anchor: GSDL::Anchor::TopCenter,
+      #   offset_y: 192,
+      #   origin: {0.5_f32, 0_f32},
+      #   scale: {0.5_f32, 0.5_f32},
+      #   color: GSDL::ColorScheme.get(:main),
+      #   align: GSDL::Font::Align::Center
+      # )
+
+
+      hud = GSDL::HUD.new
       @start_button = GSDL::Button.new(
-        font: GSDL::Font.default(32.0_f32),
+        font: GSDL::Font.default(64.0_f32),
         text: "start",
         x: cw,
-        y: ch - 32,
-        padding_x: 32,
-        padding_y: 16,
+        y: ch + 64,
+        padding_x: 64,
+        padding_y: 32,
         origin: {0.5_f32, 0.5_f32},
         scale: {0.5_f32, 0.5_f32},
         on_click: ->(s : String) {
@@ -55,6 +66,7 @@ module Traffic
     end
 
     def draw(draw : GSDL::Draw)
+      @title_screen_sprite.draw(draw)
       @start_button.draw(draw)
 
       # manually draw HUD
