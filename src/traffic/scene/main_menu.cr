@@ -20,28 +20,16 @@ module Traffic
         scale: {0.7_f32, 0.7_f32}
       )
 
-      # hud << GSDL::HUDText.new(
-      #   font: GSDL::Font.default(96.0_f32),
-      #   text: "TRAFFIC",
-      #   anchor: GSDL::Anchor::TopCenter,
-      #   offset_y: 192,
-      #   origin: {0.5_f32, 0_f32},
-      #   scale: {0.5_f32, 0.5_f32},
-      #   color: GSDL::ColorScheme.get(:main),
-      #   align: GSDL::Font::Align::Center
-      # )
-
-
       hud = GSDL::HUD.new
       @start_button = GSDL::Button.new(
-        font: GSDL::Font.default(64.0_f32),
+        font: GSDL::Font.default(32.0_f32),
         text: "start",
         x: cw,
         y: ch + 64,
         padding_x: 64,
         padding_y: 32,
         origin: {0.5_f32, 0.5_f32},
-        scale: {0.5_f32, 0.5_f32},
+        border_radius: 16,
         on_click: ->(s : String) {
           GSDL::Game.switch(Scene::Play.new)
         }

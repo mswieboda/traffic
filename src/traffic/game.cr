@@ -57,6 +57,9 @@ module Traffic
     def init
       Game.draw.to_sdl.default_texture_scale_mode = LibSDL3::ScaleMode::Nearest
 
+      # set this just in case GameSDL changes Game._init
+      Game.draw.logical_presentation = {@logical_width, @logical_height, SDL3::LogicalPresentation::Letterbox}
+
       GSDL::Input.set(:menu) { GSDL::Keys.pressed?(GSDL::Keys::Escape) }
       GSDL::Input.set(:camera_up) { GSDL::Keys.pressed?([GSDL::Keys::W, GSDL::Keys::Up]) }
       GSDL::Input.set(:camera_down) { GSDL::Keys.pressed?([GSDL::Keys::S, GSDL::Keys::Down]) }

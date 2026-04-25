@@ -16,36 +16,33 @@ module Traffic
       ch = GSDL::Game.height // 2
 
       @title = GSDL::Text.new(
-        font: GSDL::Font.default(64.0_f32),
+        font: GSDL::Font.default(32.0_f32),
         text: "GAME OVER",
         x: GSDL::Game.width / 2_f32,
         y: GSDL::Game.height / 2_f32 - 100,
         origin: {0.5_f32, 1_f32},
-        scale: {0.5_f32, 0.5_f32},
         color: GSDL::Color::White,
         z_index: @z_index
       )
 
       @sub_title = GSDL::RichText.new(
-        font: GSDL::Font.default(48.0_f32),
+        font: GSDL::Font.default(24.0_f32),
         text: "You got <c:red>XXX</c>",
         x: GSDL::Game.width / 2_f32,
         y: GSDL::Game.height / 2_f32 - 100,
         origin: {0.5_f32, 0_f32},
-        scale: {0.5_f32, 0.5_f32},
         color: GSDL::Color::White,
         z_index: @z_index
       )
 
       @start_button = GSDL::Button.new(
-        font: GSDL::Font.default(48.0_f32),
+        font: GSDL::Font.default(24.0_f32),
         text: "exit",
         x: cw,
         y: ch - 32,
         padding_x: 32,
         padding_y: 16,
         origin: {0.5_f32, 0.5_f32},
-        scale: {0.5_f32, 0.5_f32},
         on_click: ->(s : String) {
           GSDL::Game.quit!
         },
@@ -67,12 +64,11 @@ module Traffic
         "Zoom Camera - Q/E keys / mouse scroll"
 
       @intro_text = GSDL::RichText.new(
-        font: GSDL::Font.default(36.0_f32),
+        font: GSDL::Font.default(18.0_f32),
         text: intro_text,
         x: cw,
         y: ch - 32,
         origin: {0.5_f32, 0.5_f32},
-        scale: {0.5_f32, 0.5_f32},
         color: GSDL::Color::White,
         z_index: @z_index + 1,
       )
@@ -84,21 +80,22 @@ module Traffic
         y: ch,
         origin: {0.5_f32, 0.5_f32},
         color: GSDL::Color.gray(v: 0, a: 192),
+        border_radius: 16,
         z_index: @z_index
       )
 
       @start_play_button = GSDL::Button.new(
-        font: GSDL::Font.default(48.0_f32),
+        font: GSDL::Font.default(24.0_f32),
         text: "start",
         x: cw,
         y: ch + 144,
         padding_x: 32,
         padding_y: 16,
         origin: {0.5_f32, 0.5_f32},
-        scale: {0.5_f32, 0.5_f32},
         on_click: ->(s : String) {
           GSDL::Game.paused = false
         },
+        border_radius: 16,
         z_index: @z_index + 100,
         draw_relative_to_camera: false,
       )

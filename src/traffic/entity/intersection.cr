@@ -86,31 +86,29 @@ module Traffic
       # Buttons
       @flip_button = GSDL::Button.new(
         on_click: ->(s : String) { flip },
-        font: GSDL::Font.default(48.0_f32),
+        font: GSDL::Font.default(24.0_f32),
         text: "FLIP",
-        x: GSDL::Game.width,
-        y: GSDL::Game.height,
+        x: GSDL::Game.width - 16,
+        y: GSDL::Game.height - 16,
         padding_x: 16,
         padding_y: 8,
         origin: {1_f32, 1_f32},
-        scale: {0.5_f32, 0.5_f32},
         draw_relative_to_camera: false,
       )
       @flip_button.x = GSDL::Game.width - 16_f32
 
       @next_button = GSDL::Button.new(
         on_click: ->(s : String) { toggle },
-        font: GSDL::Font.default(48.0_f32),
+        font: GSDL::Font.default(24.0_f32),
         text: "CYCLE",
-        x: GSDL::Game.width,
-        y: GSDL::Game.height,
+        x: GSDL::Game.width - 16,
+        y: GSDL::Game.height - 16,
         padding_x: 16,
         padding_y: 8,
         origin: {1_f32, 1_f32},
-        scale: {0.5_f32, 0.5_f32},
         draw_relative_to_camera: false,
       )
-      @next_button.x = @flip_button.x - @flip_button.width / 2_f32 - 16
+      @next_button.x = @flip_button.x - @flip_button.width - 16
 
 
       # NOTE: add_child needs to go after any @var intialization
